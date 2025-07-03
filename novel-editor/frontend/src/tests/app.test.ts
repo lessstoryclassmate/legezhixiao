@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 
 // Mock component for testing
+// 🚀 Docker部署触发测试 - 2025-07-03
 const MockComponent = {
   template: '<div>{{ message }}</div>',
   data() {
