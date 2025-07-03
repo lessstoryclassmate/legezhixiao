@@ -1,5 +1,6 @@
 # GitHub Actions部署测试 - 自动部署触发标记
 # 此文件的修改会触发自动部署流程
+# 部署触发时间: 2025-07-03 - 变量名称修正后的首次部署测试
 
 import pytest
 import asyncio
