@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: novel-editor-config
+  namespace: development
+data:
+  ENVIRONMENT: "development"
+  DATABASE_SYSTEM_HOST: "mysql-system.development.svc.cluster.local"
+  DATABASE_SYSTEM_PORT: "3306"
+  DATABASE_SYSTEM_NAME: "novel_data_dev"
+  DATABASE_USER_HOST: "mysql-user.development.svc.cluster.local"
+  DATABASE_USER_PORT: "3306"
+  DATABASE_USER_NAME: "novel_user_data_dev"
+  DATABASE_USER_USER: "novel_data_user"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: novel-editor-secrets
+  namespace: development
+type: Opaque
+stringData:
+  SECRET_KEY: "your-secret-key-here"
+  SILICONFLOW_API_KEY: "your-api-key-here"
+  MYSQL_ROOT_PASSWORD: "your-mysql-password-here"
+  DATABASE_SYSTEM_PASSWORD: "your-system-db-password"
+  DATABASE_USER_PASSWORD: "your-user-db-password"

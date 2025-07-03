@@ -1,0 +1,142 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'yarn'
+        cache-dependency-path: frontend/yarn.lock
+
+    - name: 设置Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    # 前端代码质量检查
+    - name: 安装前端依赖
+      working-directory: ./frontend
+      run: yarn install --frozen-lockfile
+
+    - name: ESLint检查
+      working-directory: ./frontend
+      run: yarn lint --format=json --output-file=eslint-report.json || true
+
+    - name: Prettier格式检查
+      working-directory: ./frontend
+      run: yarn prettier --check . || true
+
+    - name: TypeScript类型检查
+      working-directory: ./frontend
+      run: yarn type-check
+
+    # 后端代码质量检查
+    - name: 安装后端依赖
+      working-directory: ./backend
+      run: |
+        python -m pip install --upgrade pip
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+        pip install black flake8 mypy bandit
+
+    - name: Black格式检查
+      working-directory: ./backend
+      run: |
+        source venv/bin/activate
+        black --check --diff .
+
+    - name: Flake8代码风格检查
+      working-directory: ./backend
+      run: |
+        source venv/bin/activate
+        flake8 . --format=json --output-file=flake8-report.json || true
+
+    - name: MyPy类型检查
+      working-directory: ./backend
+      run: |
+        source venv/bin/activate
+        mypy . --ignore-missing-imports
+
+    - name: Bandit安全检查
+      working-directory: ./backend
+      run: |
+        source venv/bin/activate
+        bandit -r . -f json -o bandit-report.json || true
+
+    # SonarQube分析
+    - name: SonarQube扫描
+      uses: sonarqube-quality-gate-action@master
+      with:
+        scanMetadataReportFile: .sonarqube/out/.sonar/report-task.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    # 上传报告
+    - name: 上传代码质量报告
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: code-quality-reports
+        path: |
+          frontend/eslint-report.json
+          backend/flake8-report.json
+          backend/bandit-report.json
+
+  performance-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+
+    - name: 设置Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: 安装性能测试工具
+      run: |
+        npm install -g lighthouse artillery
+
+    - name: 启动测试环境
+      run: |
+        # 使用docker-compose启动测试环境
+        docker-compose -f docker-compose.yml up -d
+        sleep 30
+
+    - name: Lighthouse性能测试
+      run: |
+        lighthouse http://localhost:3000 --output json --output-path lighthouse-report.json --chrome-flags="--headless --no-sandbox"
+
+    - name: Artillery负载测试
+      run: |
+        artillery quick --count 10 --num 5 http://localhost:8000/health > artillery-report.json
+
+    - name: 停止测试环境
+      run: |
+        docker-compose -f docker-compose.yml down
+
+    - name: 上传性能报告
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-reports
+        path: |
+          lighthouse-report.json
+          artillery-report.json

@@ -1,0 +1,141 @@
+# AI小说编辑器 - 生产环境 Docker Compose 配置
+version: '3.8'
+
+services:
+  # 后端API服务
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: novel-editor-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 应用配置
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      
+      # 数据库配置 (生产环境)
+      - DATABASE_SYSTEM_HOST=${DATABASE_SYSTEM_HOST:-172.16.16.3}
+      - DATABASE_SYSTEM_PORT=${DATABASE_SYSTEM_PORT:-3306}
+      - DATABASE_SYSTEM_NAME=${DATABASE_SYSTEM_NAME:-novel_data}
+      - DATABASE_SYSTEM_USER=${DATABASE_SYSTEM_USER:-lkr}
+      - DATABASE_SYSTEM_PASSWORD=${DATABASE_SYSTEM_PASSWORD:-Lekairong350702}
+      
+      - DATABASE_USER_HOST=${DATABASE_USER_HOST:-172.16.16.2}
+      - DATABASE_USER_PORT=${DATABASE_USER_PORT:-3306}
+      - DATABASE_USER_NAME=${DATABASE_USER_NAME:-novel_user_data}
+      - DATABASE_USER_USER=${DATABASE_USER_USER:-novel_data_user}
+      - DATABASE_USER_PASSWORD=${DATABASE_USER_PASSWORD:-Lekairong350702}
+      
+      # AI服务配置
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY:-sk-mjithqmjwccqgffouexthbavtnvftwkqjludpcxhrmeztcib}
+      - SILICONFLOW_API_URL=${SILICONFLOW_API_URL:-https://api.siliconflow.cn/v1}
+      - DEFAULT_AI_MODEL=${DEFAULT_AI_MODEL:-deepseek-ai/DeepSeek-V3}
+      
+      # 安全配置
+      - SECRET_KEY=${SECRET_KEY:-your-very-secure-secret-key-change-in-production}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      
+      # Redis配置
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    volumes:
+      # 持久化数据目录
+      - backend_data:/app/data
+      - backend_logs:/app/logs
+    depends_on:
+      - redis
+    networks:
+      - novel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 前端服务
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: novel-editor-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_HTTPS_PORT:-443}:443"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8000}
+      - REACT_APP_ENV=production
+    depends_on:
+      - backend
+    networks:
+      - novel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: novel-editor-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - novel-network
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx反向代理 (可选)
+  nginx:
+    image: nginx:alpine
+    container_name: novel-editor-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - novel-network
+    profiles:
+      - production
+
+# 网络配置
+networks:
+  novel-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+
+# 数据卷配置
+volumes:
+  backend_data:
+    driver: local
+  backend_logs:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_logs:
+    driver: local

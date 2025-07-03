@@ -1,0 +1,155 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novel-editor-backend
+  namespace: ENVIRONMENT
+  labels:
+    app: novel-editor-backend
+    version: IMAGE_TAG
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novel-editor-backend
+  template:
+    metadata:
+      labels:
+        app: novel-editor-backend
+        version: IMAGE_TAG
+    spec:
+      containers:
+      - name: backend
+        image: ghcr.io/USERNAME/novel-editor-backend:IMAGE_TAG
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: novel-editor-config
+        - secretRef:
+            name: novel-editor-secrets
+        env:
+        - name: DATABASE_SYSTEM_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: novel-editor-config
+              key: DATABASE_SYSTEM_HOST
+        - name: DATABASE_USER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: novel-editor-config
+              key: DATABASE_USER_HOST
+        - name: SILICONFLOW_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novel-editor-secrets
+              key: SILICONFLOW_API_KEY
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novel-editor-secrets
+              key: SECRET_KEY
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: novel-editor-backend-service
+spec:
+  selector:
+    app: novel-editor-backend
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novel-editor-frontend
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: novel-editor-frontend
+  template:
+    metadata:
+      labels:
+        app: novel-editor-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: novel-editor-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: novel-editor-frontend-service
+spec:
+  selector:
+    app: novel-editor-frontend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: novel-editor-ingress
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+  - host: novel-editor.your-domain.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: novel-editor-backend-service
+            port:
+              number: 8000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: novel-editor-frontend-service
+            port:
+              number: 80
