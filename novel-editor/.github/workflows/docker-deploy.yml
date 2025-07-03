@@ -1,0 +1,276 @@
+name: 🐳 Docker Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: novel-editor
+
+jobs:
+  # 构建Docker镜像
+  build:
+    name: 🏗️ Build Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    outputs:
+      backend-image: ${{ steps.meta.outputs.backend-image }}
+      frontend-image: ${{ steps.meta.outputs.frontend-image }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔐 Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 📋 Extract metadata
+      id: meta
+      run: |
+        # 生成镜像标签
+        VERSION=${GITHUB_SHA::8}
+        BACKEND_IMAGE="${{ env.REGISTRY }}/${{ github.repository }}-backend:${VERSION}"
+        FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ github.repository }}-frontend:${VERSION}"
+        
+        echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
+        echo "frontend-image=${FRONTEND_IMAGE}" >> $GITHUB_OUTPUT
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+    - name: 🔨 Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.backend-image }}
+        target: production
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+
+    - name: 🔨 Build and push frontend image  
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.frontend-image }}
+        target: production
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+
+  # 部署到服务器
+  deploy:
+    name: 🚀 Deploy to Server
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🔐 Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: 📦 Create deployment files
+      run: |
+        # 创建生产环境配置
+        cat > .env.prod << EOF
+        # 应用配置
+        DEBUG=false
+        ENVIRONMENT=production
+        APP_NAME=AI小说编辑器
+        APP_VERSION=1.0.0
+        
+        # 网络配置  
+        FRONTEND_PORT=80
+        BACKEND_PORT=8000
+        
+        # 数据库配置
+        DATABASE_PORT=3306
+        DATABASE_SYSTEMIP=${{ secrets.DATABASE_SYSTEMIP }}
+        DATABASE_SYSTEM=${{ secrets.DATABASE_SYSTEM }}
+        DATABASE_USER=${{ secrets.DATABASE_USER }}
+        DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+        DATABASE_NOVELIP=${{ secrets.DATABASE_NOVELIP }}
+        DATABASE_NOVELDATA=${{ secrets.DATABASE_NOVELDATA }}
+        DATABASE_NOVELUSER=${{ secrets.DATABASE_NOVELUSER }}
+        DATABASE_NOVELUSER_PASSWORD=${{ secrets.DATABASE_NOVELUSER_PASSWORD }}
+        
+        # AI服务配置
+        SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+        DEFAULT_AI_MODEL=deepseek-ai/DeepSeek-V3
+        
+        # 安全配置
+        SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+        ALGORITHM=HS256
+        ACCESS_TOKEN_EXPIRE_MINUTES=30
+        
+        # Docker镜像配置
+        BACKEND_IMAGE=${{ needs.build.outputs.backend-image }}
+        FRONTEND_IMAGE=${{ needs.build.outputs.frontend-image }}
+        EOF
+
+        # 创建Docker Compose部署配置
+        cat > docker-compose.deploy.yml << EOF
+        version: '3.8'
+
+        services:
+          backend:
+            image: ${{ needs.build.outputs.backend-image }}
+            container_name: novel-editor-backend
+            restart: unless-stopped
+            env_file:
+              - .env.prod
+            ports:
+              - "8000:8000"
+            volumes:
+              - novel_data:/app/data
+              - ./logs:/app/logs
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+              start_period: 40s
+            networks:
+              - novel-network
+
+          frontend:
+            image: ${{ needs.build.outputs.frontend-image }}
+            container_name: novel-editor-frontend
+            restart: unless-stopped
+            ports:
+              - "80:80"
+              - "443:443"
+            depends_on:
+              backend:
+                condition: service_healthy
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+              start_period: 30s
+            networks:
+              - novel-network
+
+          redis:
+            image: redis:7-alpine
+            container_name: novel-editor-redis
+            restart: unless-stopped
+            ports:
+              - "6379:6379"
+            volumes:
+              - redis_data:/data
+            command: redis-server --appendonly yes
+            networks:
+              - novel-network
+
+        volumes:
+          novel_data:
+            driver: local
+          redis_data:
+            driver: local
+
+        networks:
+          novel-network:
+            driver: bridge
+        EOF
+
+    - name: 🚀 Deploy to server
+      run: |
+        # 上传部署文件到服务器
+        scp .env.prod docker-compose.deploy.yml ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/novel-editor/
+
+        # 执行服务器部署
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'DEPLOY_SCRIPT'
+          cd /root/novel-editor
+          
+          echo "🔐 登录到容器注册表..."
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          echo "📥 拉取最新镜像..."
+          docker pull ${{ needs.build.outputs.backend-image }}
+          docker pull ${{ needs.build.outputs.frontend-image }}
+          
+          echo "🛑 停止现有服务..."
+          docker-compose -f docker-compose.deploy.yml down || true
+          
+          echo "🧹 清理旧容器和镜像..."
+          docker system prune -f
+          
+          echo "🚀 启动新服务..."
+          docker-compose -f docker-compose.deploy.yml up -d
+          
+          echo "⏳ 等待服务启动..."
+          sleep 45
+          
+          echo "🔍 检查服务状态..."
+          docker-compose -f docker-compose.deploy.yml ps
+          
+          echo "💓 健康检查..."
+          curl -f http://localhost:8000/health || echo "Backend health check failed"
+          curl -f http://localhost/ || echo "Frontend health check failed"
+          
+          echo "📊 显示服务日志..."
+          docker-compose -f docker-compose.deploy.yml logs --tail=20
+        DEPLOY_SCRIPT
+
+    - name: ✅ Deployment verification
+      run: |
+        echo "🎉 部署完成验证"
+        echo "📍 前端地址: http://${{ secrets.SERVER_IP }}"
+        echo "📍 API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
+        echo "📍 健康检查: http://${{ secrets.SERVER_IP }}:8000/health"
+        
+        # 远程验证服务状态
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'VERIFY_SCRIPT'
+          echo "🔍 最终状态验证:"
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          
+          echo "📈 资源使用情况:"
+          docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+        VERIFY_SCRIPT
+
+  # 通知部署结果
+  notify:
+    name: 📢 Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    if: always()
+    
+    steps:
+    - name: 📢 Deployment notification
+      run: |
+        if [ "${{ needs.deploy.result }}" == "success" ]; then
+          echo "✅ 部署成功！"
+          echo "🌐 应用地址: http://${{ secrets.SERVER_IP }}"
+          echo "📚 API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
+          echo "🏷️ 镜像版本: ${{ needs.build.outputs.version }}"
+        else
+          echo "❌ 部署失败！"
+          echo "请检查日志并重试部署"
+        fi
