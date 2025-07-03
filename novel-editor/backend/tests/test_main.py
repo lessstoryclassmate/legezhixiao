@@ -152,16 +152,16 @@ def test_environment_variables():
     # Required environment variables
     required_vars = [
         "SECRET_KEY",
-        "DATABASE_SYSTEM_HOST",
-        "DATABASE_USER_HOST",
+        "DATABASE_SYSTEMIP",
+        "DATABASE_USER",
         "SILICONFLOW_API_KEY"
     ]
     
     # In testing, we'll mock these
     mock_env = {
         "SECRET_KEY": "test-secret-key",
-        "DATABASE_SYSTEM_HOST": "localhost",
-        "DATABASE_USER_HOST": "localhost",
+        "DATABASE_SYSTEMIP": "localhost",
+        "DATABASE_USER": "localhost",
         "SILICONFLOW_API_KEY": "test-api-key"
     }
     

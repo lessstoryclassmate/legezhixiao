@@ -1,0 +1,281 @@
+name: 🚀 百度云服务器自动部署
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_PREFIX: novel-editor
+
+jobs:
+  # 构建Docker镜像
+  build:
+    name: 🏗️ 构建Docker镜像
+    runs-on: ubuntu-latest
+    outputs:
+      backend-image: ${{ steps.meta.outputs.backend-image }}
+      frontend-image: ${{ steps.meta.outputs.frontend-image }}
+      version: ${{ steps.meta.outputs.version }}
+    
+    steps:
+    - name: 🚀 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🐳 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🔐 登录到GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 📋 生成元数据
+      id: meta
+      run: |
+        VERSION=${{ github.sha }}
+        BACKEND_IMAGE="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${VERSION}"
+        FRONTEND_IMAGE="${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${VERSION}"
+        
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
+        echo "frontend-image=${FRONTEND_IMAGE}" >> $GITHUB_OUTPUT
+
+    - name: 🔨 构建并推送后端镜像
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile
+        target: production
+        push: true
+        tags: ${{ steps.meta.outputs.backend-image }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🎨 构建并推送前端镜像
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        target: production
+        push: true
+        tags: ${{ steps.meta.outputs.frontend-image }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # 部署到百度云服务器
+  deploy:
+    name: 🌐 部署到百度云服务器
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: 🚀 检出代码
+      uses: actions/checkout@v4
+
+    - name: 📝 创建部署配置
+      run: |
+        # 创建生产环境配置
+        cat > .env.prod << EOF
+        # ===========================================
+        # 🛠️ 应用配置
+        # ===========================================
+        DEBUG=false
+        ENVIRONMENT=production
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        
+        # ===========================================
+        # 🤖 AI服务配置
+        # ===========================================
+        SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+        DEFAULT_AI_MODEL=deepseek-ai/DeepSeek-V3
+        
+        # ===========================================
+        # 🗄️ 数据库配置
+        # ===========================================
+        # 数据库端口
+        DATABASE_PORT=3306
+        
+        # 系统数据库
+        DATABASE_SYSTEMIP=${{ secrets.DATABASE_SYSTEMIP }}
+        DATABASE_SYSTEM=${{ secrets.DATABASE_SYSTEM }}
+        DATABASE_USER=${{ secrets.DATABASE_USER }}
+        DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+        
+        # 用户数据库
+        DATABASE_NOVELIP=${{ secrets.DATABASE_NOVELIP }}
+        DATABASE_NOVELDATA=${{ secrets.DATABASE_NOVELDATA }}
+        DATABASE_NOVELUSER=${{ secrets.DATABASE_NOVELUSER }}
+        DATABASE_NOVELUSER_PASSWORD=${{ secrets.DATABASE_NOVELUSER_PASSWORD }}
+        
+        # ===========================================
+        # 🔒 安全配置
+        # ===========================================
+        CORS_ORIGINS=["http://106.13.216.179", "https://106.13.216.179"]
+        JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+        JWT_ALGORITHM=HS256
+        ACCESS_TOKEN_EXPIRE_MINUTES=30
+        
+        # ===========================================
+        # 📊 日志配置
+        # ===========================================
+        LOG_LEVEL=INFO
+        LOG_FILE=/app/logs/app.log
+        EOF
+
+        # 创建Docker Compose部署配置
+        cat > docker-compose.baidu.yml << EOF
+        version: '3.8'
+
+        services:
+          backend:
+            image: ${{ needs.build.outputs.backend-image }}
+            container_name: novel-editor-backend
+            restart: unless-stopped
+            env_file:
+              - .env.prod
+            volumes:
+              - novel_editor_data:/app/data
+              - ./logs:/app/logs
+            ports:
+              - "8000:8000"
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+              start_period: 40s
+            depends_on:
+              - redis
+
+          frontend:
+            image: ${{ needs.build.outputs.frontend-image }}
+            container_name: novel-editor-frontend
+            restart: unless-stopped
+            ports:
+              - "80:80"
+            depends_on:
+              - backend
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+              start_period: 30s
+
+          redis:
+            image: redis:7-alpine
+            container_name: novel-editor-redis
+            restart: unless-stopped
+            ports:
+              - "6379:6379"
+            volumes:
+              - redis_data:/data
+            command: redis-server --appendonly yes
+
+        volumes:
+          novel_editor_data:
+            driver: local
+          redis_data:
+            driver: local
+        EOF
+
+    - name: 🔐 配置SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: 📦 部署到百度云服务器
+      run: |
+        # 复制文件到服务器
+        scp -o StrictHostKeyChecking=no .env.prod docker-compose.baidu.yml \
+          ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/novel-editor/
+
+        # SSH到服务器执行部署
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          cd /root/novel-editor
+          
+          # 检查必要目录
+          mkdir -p logs
+          
+          # 登录到GitHub Container Registry
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # 停止现有服务
+          echo "⏹️ 停止现有服务..."
+          docker-compose -f docker-compose.baidu.yml down || true
+          
+          # 清理未使用的镜像
+          echo "🧹 清理Docker资源..."
+          docker system prune -f
+          
+          # 拉取最新镜像
+          echo "📥 拉取最新镜像..."
+          docker-compose -f docker-compose.baidu.yml pull
+          
+          # 启动服务
+          echo "🚀 启动服务..."
+          docker-compose -f docker-compose.baidu.yml up -d
+          
+          # 等待服务启动
+          echo "⏳ 等待服务启动..."
+          sleep 30
+          
+          # 健康检查
+          echo "🔍 执行健康检查..."
+          max_attempts=10
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+              echo "✅ 后端服务健康检查通过"
+              break
+            else
+              echo "⏳ 等待后端服务启动... ($attempt/$max_attempts)"
+              sleep 10
+              ((attempt++))
+            fi
+          done
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ 后端服务健康检查失败"
+            docker-compose -f docker-compose.baidu.yml logs backend
+            exit 1
+          fi
+          
+          # 检查前端
+          if curl -f http://localhost > /dev/null 2>&1; then
+            echo "✅ 前端服务健康检查通过"
+          else
+            echo "⚠️ 前端服务可能存在问题"
+          fi
+          
+          # 显示服务状态
+          echo "📊 服务状态:"
+          docker-compose -f docker-compose.baidu.yml ps
+          
+          echo "🎉 部署完成!"
+          echo "🌐 访问地址: http://106.13.216.179"
+          echo "📖 API文档: http://106.13.216.179:8000/docs"
+        EOF
+
+    - name: 📊 部署结果通知
+      if: always()
+      run: |
+        if [ $? -eq 0 ]; then
+          echo "✅ 部署成功!"
+          echo "🌐 前端地址: http://106.13.216.179"
+          echo "📖 API文档: http://106.13.216.179:8000/docs"
+          echo "💓 健康检查: http://106.13.216.179:8000/health"
+        else
+          echo "❌ 部署失败，请检查日志"
+        fi
