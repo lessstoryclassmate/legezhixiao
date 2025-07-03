@@ -1,3 +1,6 @@
+# GitHub Actions部署测试 - 自动部署触发标记
+# 此文件的修改会触发自动部署流程
+
 import pytest
 import asyncio
 from fastapi.testclient import TestClient

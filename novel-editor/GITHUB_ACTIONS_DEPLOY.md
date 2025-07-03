@@ -1,12 +1,31 @@
-# GitHub Actions 自动部署配置说明
+# GitHub Actions 自动部署配置指南
 
 ## 🎯 概述
 
-您的项目已配置了完整的GitHub Actions自动部署流水线，支持代码推送后自动构建、测试、部署到云服务器。
+您的AI小说编辑器项目已配置完整的GitHub Actions自动部署流程，支持自动构建Docker镜像并部署到云服务器。
 
-## 🔧 已配置的工作流
+## � GitHub环境变量配置
 
-### 1. 主要工作流文件
+既然您已经在GitHub库中配置了环境变量，请确保包含以下Secrets和Variables：
+
+### GitHub Secrets (必需)
+```
+SSH_PRIVATE_KEY=your_server_ssh_private_key
+SERVER_HOST=your_server_ip_or_domain  
+SERVER_USER=your_server_username
+SILICONFLOW_API_KEY=your_siliconflow_api_key
+SECRET_KEY=your_app_secret_key
+GITHUB_TOKEN=automatically_provided_by_github
+```
+
+### GitHub Variables (可选)
+```
+DEFAULT_AI_MODEL=deepseek-ai/DeepSeek-V3
+SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+BACKEND_CORS_ORIGINS=*
+APP_URL=http://your-server-ip
+DATABASE_URL=sqlite:///./novel_editor.db
+```
 
 - **`.github/workflows/cloud-deploy.yml`** - 云服务器自动部署
 - **`.github/workflows/ci-cd.yml`** - 完整的CI/CD流水线  
