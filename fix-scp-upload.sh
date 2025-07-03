@@ -1,3 +1,56 @@
+#!/bin/bash
+
+# 智能SCP上传问题修复脚本
+# 用于诊断和修复GitHub Actions中的SCP上传失败问题
+
+echo "🔍 SCP上传问题智能诊断开始..."
+
+# 函数：记录日志
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+# 函数：检查项目结构
+check_project_structure() {
+    log "📁 检查项目结构..."
+    
+    # 检查当前目录
+    log "当前工作目录: $(pwd)"
+    log "目录内容:"
+    ls -la
+    
+    # 检查novel-editor目录
+    if [ -d "novel-editor" ]; then
+        log "✅ novel-editor目录存在"
+        log "📁 novel-editor目录内容:"
+        ls -la novel-editor/
+        
+        # 检查关键子目录
+        local missing_dirs=()
+        for dir in "backend" "frontend" "nginx"; do
+            if [ ! -d "novel-editor/$dir" ]; then
+                missing_dirs+=("$dir")
+            fi
+        done
+        
+        if [ ${#missing_dirs[@]} -eq 0 ]; then
+            log "✅ 所有关键目录都存在"
+            return 0
+        else
+            log "❌ 缺少关键目录: ${missing_dirs[*]}"
+            return 1
+        fi
+    else
+        log "❌ novel-editor目录不存在"
+        return 1
+    fi
+}
+
+# 函数：生成修复的工作流
+generate_fixed_workflow() {
+    log "🔧 生成修复的GitHub Actions工作流..."
+    
+    cat > ".github/workflows/baidu-deploy-fixed.yml" << 'EOF'
 name: 🚀 Deploy to Baidu Cloud (Fixed)
 
 on:
@@ -151,3 +204,100 @@ jobs:
         echo "📍 前端地址: http://${{ secrets.SERVER_IP }}"
         echo "📍 API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
         echo "📍 健康检查: http://${{ secrets.SERVER_IP }}:8000/health"
+EOF
+
+    log "✅ 修复的工作流已生成: .github/workflows/baidu-deploy-fixed.yml"
+}
+
+# 函数：生成诊断报告
+generate_diagnostic_report() {
+    log "📋 生成诊断报告..."
+    
+    cat > "SCP_UPLOAD_DIAGNOSTIC_REPORT.md" << EOF
+# SCP上传问题诊断报告
+
+## 问题描述
+GitHub Actions工作流中的SCP命令上传novel-editor目录失败。
+
+## 可能原因分析
+
+### 1. 项目结构问题
+- novel-editor目录不存在或路径不正确
+- 关键子目录(backend/frontend)缺失
+- 权限问题
+
+### 2. SCP命令问题
+- 源路径引用错误
+- 目标路径不存在
+- SSH连接问题
+
+### 3. 服务器端问题
+- 目标目录权限不足
+- 磁盘空间不足
+- 网络连接问题
+
+## 修复方案
+
+### 方案1: 使用压缩包上传（推荐）
+- 将项目文件打包成tar.gz
+- 上传压缩包到服务器
+- 在服务器端解压
+
+### 方案2: 修正SCP命令
+- 使用绝对路径
+- 添加详细的错误检查
+- 预先创建目标目录
+
+### 方案3: 分步上传
+- 分别上传各个子目录
+- 添加上传验证
+- 失败时自动重试
+
+## 实施步骤
+
+1. 使用修复的工作流文件: \`baidu-deploy-fixed.yml\`
+2. 验证项目结构完整性
+3. 测试压缩包上传方法
+4. 监控部署日志
+
+## 预防措施
+
+1. 在CI/CD中添加项目结构验证
+2. 使用可靠的文件传输方法
+3. 添加详细的错误诊断
+4. 实施自动重试机制
+
+生成时间: $(date)
+EOF
+
+    log "📋 诊断报告已生成: SCP_UPLOAD_DIAGNOSTIC_REPORT.md"
+}
+
+# 主执行流程
+main() {
+    log "🚀 开始SCP上传问题智能修复..."
+    
+    # 检查项目结构
+    if check_project_structure; then
+        log "✅ 项目结构检查通过"
+    else
+        log "❌ 项目结构检查失败"
+    fi
+    
+    # 生成修复方案
+    generate_fixed_workflow
+    generate_diagnostic_report
+    
+    log "🎉 智能修复完成！"
+    log "📋 请查看生成的文件:"
+    log "   - .github/workflows/baidu-deploy-fixed.yml (修复的工作流)"
+    log "   - SCP_UPLOAD_DIAGNOSTIC_REPORT.md (诊断报告)"
+    log ""
+    log "🔧 建议操作:"
+    log "   1. 提交修复的工作流文件"
+    log "   2. 触发新的部署测试"
+    log "   3. 监控部署日志"
+}
+
+# 执行主函数
+main "$@"

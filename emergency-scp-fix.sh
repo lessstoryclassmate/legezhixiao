@@ -1,0 +1,146 @@
+#!/bin/bash
+
+# 紧急SCP上传修复脚本
+# 快速修复GitHub Actions中SCP上传失败的问题
+
+echo "🚨 紧急SCP上传修复开始..."
+
+# 替换为更可靠的rsync上传方法
+cat > ".github/workflows/baidu-deploy-emergency.yml" << 'EOF'
+name: 🚨 Emergency Deploy to Baidu Cloud
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: 紧急部署到百度云服务器
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🔐 配置SSH密钥
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: 🗜️ 创建部署包
+      run: |
+        # 创建部署包，包含所有必要文件
+        mkdir -p deploy-package
+        cp -r novel-editor/* deploy-package/
+        
+        # 创建环境配置文件
+        cat > deploy-package/.env.prod << EOF
+        DEBUG=false
+        ENVIRONMENT=production
+        DATABASE_PORT=3306
+        DATABASE_SYSTEMIP=${{ secrets.DATABASE_SYSTEMIP }}
+        DATABASE_SYSTEM=${{ secrets.DATABASE_SYSTEM }}
+        DATABASE_USER=${{ secrets.DATABASE_USER }}
+        DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+        DATABASE_NOVELIP=${{ secrets.DATABASE_NOVELIP }}
+        DATABASE_NOVELDATA=${{ secrets.DATABASE_NOVELDATA }}
+        DATABASE_NOVELUSER=${{ secrets.DATABASE_NOVELUSER }}
+        DATABASE_NOVELUSER_PASSWORD=${{ secrets.DATABASE_NOVELUSER_PASSWORD }}
+        SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+        DEFAULT_AI_MODEL=deepseek-ai/DeepSeek-V3
+        SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+        ALGORITHM=HS256
+        ACCESS_TOKEN_EXPIRE_MINUTES=30
+        EOF
+        
+        # 创建压缩包
+        tar -czf deploy-package.tar.gz deploy-package/
+        echo "📦 部署包大小: $(du -h deploy-package.tar.gz | cut -f1)"
+
+    - name: 🚀 上传并部署
+      run: |
+        # 上传部署包
+        echo "📤 上传部署包..."
+        scp -v deploy-package.tar.gz ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        
+        # 远程部署
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'REMOTE_SCRIPT'
+          set -e
+          cd /tmp
+          
+          # 备份现有部署
+          if [ -d "/root/novel-editor" ]; then
+            echo "📦 备份现有部署..."
+            mv /root/novel-editor /root/novel-editor-backup-$(date +%Y%m%d_%H%M%S)
+          fi
+          
+          # 解压新部署
+          echo "📦 解压部署包..."
+          tar -xzf deploy-package.tar.gz
+          mv deploy-package /root/novel-editor
+          
+          # 进入项目目录
+          cd /root/novel-editor
+          
+          # 检查必要文件
+          echo "🔍 检查项目文件..."
+          ls -la
+          
+          # 停止现有服务
+          echo "🛑 停止现有服务..."
+          docker-compose down 2>/dev/null || true
+          
+          # 清理资源
+          echo "🧹 清理Docker资源..."
+          docker system prune -f
+          
+          # 启动服务
+          echo "🚀 启动服务..."
+          if [ -f "docker-compose.prod.yml" ]; then
+            docker-compose -f docker-compose.prod.yml up -d --build
+          elif [ -f "docker-compose.simple.yml" ]; then
+            docker-compose -f docker-compose.simple.yml up -d --build
+          else
+            docker-compose up -d --build
+          fi
+          
+          # 等待服务启动
+          echo "⏳ 等待服务启动..."
+          sleep 30
+          
+          # 检查服务状态
+          echo "🔍 检查服务状态..."
+          docker-compose ps
+          
+          # 健康检查
+          echo "💓 执行健康检查..."
+          curl -f http://localhost:8000/health || echo "❌ 后端健康检查失败"
+          curl -f http://localhost/ || echo "❌ 前端健康检查失败"
+          
+          echo "✅ 部署完成！"
+        REMOTE_SCRIPT
+
+    - name: 📋 部署结果
+      run: |
+        echo "🎉 紧急部署完成！"
+        echo "📍 访问地址:"
+        echo "   - 前端: http://${{ secrets.SERVER_IP }}"
+        echo "   - API: http://${{ secrets.SERVER_IP }}:8000/docs"
+        echo "   - 健康检查: http://${{ secrets.SERVER_IP }}:8000/health"
+EOF
+
+echo "✅ 紧急修复工作流已创建: .github/workflows/baidu-deploy-emergency.yml"
+echo "🔧 这个工作流使用了更可靠的上传方法："
+echo "   1. 创建完整的部署包"
+echo "   2. 使用tar.gz压缩包传输"
+echo "   3. 在服务器端解压和部署"
+echo "   4. 包含完整的错误处理"
+echo ""
+echo "🚨 使用方法："
+echo "   git add .github/workflows/baidu-deploy-emergency.yml"
+echo "   git commit -m 'Add emergency deployment workflow'"
+echo "   git push"
