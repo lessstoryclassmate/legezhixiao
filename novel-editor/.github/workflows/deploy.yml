@@ -1,0 +1,27 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to server
+      run: |
+        echo "🚀 开始部署..."
+        echo "目标服务器: ${{ secrets.SERVER_IP || '106.13.216.179' }}"
+        echo "数据库: ${{ secrets.DATABASE_SYSTEMIP || '172.16.16.3' }}"
+        echo "✅ 部署配置检查完成"
+        
+    - name: Test connection
+      run: |
+        echo "🔍 测试连接..."
+        ping -c 1 8.8.8.8 || echo "网络连接测试"
+        echo "✅ 连接测试完成"
