@@ -76,6 +76,12 @@ class GitHubActionsAnalyzer:
                 r'no.*space.*left',
                 r'disk.*full',
                 r'not.*enough.*space'
+            ],
+            'nginx_user_conflict': [
+                r'addgroup.*nginx.*in use',
+                r'group.*nginx.*in use',
+                r'adduser.*nginx.*exists',
+                r'user.*nginx.*exists'
             ]
         }
 
@@ -375,6 +381,25 @@ sudo fuser -k 80/tcp
 sudo fuser -k 8000/tcp
 
 echo "✅ 端口修复完成"
+'''
+
+    def _generate_nginx_user_fix(self) -> str:
+        """生成Nginx用户冲突修复脚本"""
+        return '''#!/bin/bash
+# Nginx用户冲突修复
+echo "🔧 修复Nginx用户组冲突..."
+
+# 备份Dockerfile
+if [ -f "frontend/Dockerfile" ]; then
+    cp frontend/Dockerfile frontend/Dockerfile.backup
+    echo "📋 已备份原Dockerfile"
+fi
+
+# 修复nginx用户组创建问题
+find . -name "Dockerfile*" -exec sed -i '/addgroup.*nginx/,/adduser.*nginx/c\\
+# nginx用户和组已存在于基础镜像中，无需重新创建' {} \\;
+
+echo "✅ Nginx用户冲突修复完成"
 '''
 
     def create_fix_scripts(self, strategies: Dict[str, Dict]) -> None:

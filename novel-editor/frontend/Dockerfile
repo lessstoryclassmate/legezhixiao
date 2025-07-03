@@ -66,9 +66,9 @@ FROM nginx:alpine as production
 # 安装curl用于健康检查
 RUN apk add --no-cache curl
 
-# 创建nginx用户
-RUN addgroup -g 101 -S nginx && \
-    adduser -S nginx -u 101 -G nginx
+# nginx用户和组已存在于基础镜像中，无需重新创建
+# RUN addgroup -g 101 -S nginx && \
+#     adduser -S nginx -u 101 -G nginx
 
 # 复制构建文件
 COPY --from=builder /app/dist /usr/share/nginx/html
