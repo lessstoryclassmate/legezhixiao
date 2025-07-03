@@ -1,0 +1,84 @@
+# AI小说编辑器 - 兼容旧版Docker的简化生产环境配置
+version: '3.3'
+
+services:
+  # 后端API服务
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.simple
+    container_name: novel-editor-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 应用配置
+      - DEBUG=false
+      - HOST=0.0.0.0
+      - PORT=8000
+      
+      # 数据库配置 (生产环境)
+      - DATABASE_PORT=${DATABASE_PORT:-3306}
+      
+      # 系统数据库
+      - DATABASE_SYSTEMIP=${DATABASE_SYSTEMIP:-172.16.16.3}
+      - DATABASE_SYSTEM=${DATABASE_SYSTEM:-novel_data}
+      - DATABASE_USER=${DATABASE_USER:-lkr}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-Lekairong350702}
+      
+      # 用户数据库
+      - DATABASE_NOVELIP=${DATABASE_NOVELIP:-172.16.16.3}
+      - DATABASE_NOVELDATA=${DATABASE_NOVELDATA:-novel_user_data}
+      - DATABASE_NOVELUSER=${DATABASE_NOVELUSER:-lkr}
+      - DATABASE_NOVELUSER_PASSWORD=${DATABASE_NOVELUSER_PASSWORD:-Lekairong350702}
+      
+      # AI服务配置
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+      - DEFAULT_AI_MODEL=deepseek-ai/DeepSeek-V3
+      
+      # 安全配置
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/data:/app/data
+    networks:
+      - novel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # 前端Web服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.simple
+    container_name: novel-editor-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - novel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  novel-network:
+    driver: bridge
+
+volumes:
+  backend_data:
+    driver: local
