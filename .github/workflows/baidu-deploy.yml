@@ -73,7 +73,36 @@ jobs:
           # 复制环境配置文件
           cp ../.env.prod .env.prod
           
-          echo "🛑 停止现有服务..."
+          echo "� 检查Docker版本..."
+          docker --version || echo "Docker版本检查失败"
+          docker compose version || docker-compose --version || echo "Docker Compose版本检查失败"
+          
+          echo "🆙 更新Docker到最新版本（如果需要）..."
+          # 给更新脚本执行权限
+          chmod +x update-docker.sh
+          
+          # 检查Docker版本是否足够新
+          DOCKER_VERSION=$(docker --version | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          MIN_VERSION="20.10"
+          
+          if [[ "$(printf '%s\n' "$MIN_VERSION" "$DOCKER_VERSION" | sort -V | head -n1)" = "$MIN_VERSION" ]]; then
+            echo "✅ Docker版本 $DOCKER_VERSION 足够新，跳过更新"
+          else
+            echo "⚠️ Docker版本 $DOCKER_VERSION 过旧，开始更新..."
+            # 自动化更新Docker（Ubuntu/Debian）
+            if command -v apt-get &> /dev/null; then
+              echo "📋 检测到Ubuntu/Debian系统，使用apt更新..."
+              sudo apt-get update
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            elif command -v yum &> /dev/null; then
+              echo "📋 检测到CentOS/RHEL系统，使用yum更新..."
+              sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+            else
+              echo "❌ 无法识别系统类型，请手动更新Docker"
+            fi
+          fi
+          
+          echo "�🛑 停止现有服务..."
           docker-compose -f docker-compose.prod.yml down || true
           
           echo "🧹 清理旧容器和镜像..."
@@ -87,30 +116,35 @@ jobs:
           echo "🔨 构建并启动服务（带超时设置）..."
           # 设置构建超时为20分钟
           timeout 1200 docker-compose -f docker-compose.prod.yml up -d --build || {
-            echo "❌ 构建超时，尝试分步构建..."
+            echo "❌ 标准构建失败，尝试兼容性构建..."
             
-            echo "📦 单独构建后端..."
-            timeout 600 docker-compose -f docker-compose.prod.yml build backend || echo "后端构建失败"
-            
-            echo "📦 单独构建前端..."
-            timeout 600 docker-compose -f docker-compose.prod.yml build frontend || echo "前端构建失败"
-            
-            echo "🚀 启动服务..."
-            docker-compose -f docker-compose.prod.yml up -d || echo "服务启动失败"
+            echo "📦 使用兼容性配置重新构建..."
+            timeout 1200 docker-compose -f docker-compose.simple.yml up -d --build || {
+              echo "❌ 兼容性构建也失败，尝试分步构建..."
+              
+              echo "📦 单独构建后端..."
+              timeout 600 docker-compose -f docker-compose.simple.yml build backend || echo "后端构建失败"
+              
+              echo "📦 单独构建前端..."
+              timeout 600 docker-compose -f docker-compose.simple.yml build frontend || echo "前端构建失败"
+              
+              echo "🚀 启动服务..."
+              docker-compose -f docker-compose.simple.yml up -d || echo "服务启动失败"
+            }
           }
           
           echo "⏳ 等待服务启动..."
           sleep 60
           
           echo "🔍 检查服务状态..."
-          docker-compose -f docker-compose.prod.yml ps
+          docker-compose -f docker-compose.prod.yml ps || docker-compose -f docker-compose.simple.yml ps
           
           echo "💓 健康检查..."
           curl -f http://localhost:8000/health || echo "Backend health check failed"
           curl -f http://localhost/ || echo "Frontend health check failed"
           
           echo "📊 显示服务日志..."
-          docker-compose -f docker-compose.prod.yml logs --tail=20
+          docker-compose -f docker-compose.prod.yml logs --tail=20 || docker-compose -f docker-compose.simple.yml logs --tail=20
         EOF
 
     - name: ✅ 部署验证
