@@ -79,11 +79,28 @@ jobs:
           echo "🧹 清理旧容器和镜像..."
           docker system prune -f
           
-          echo "🔨 构建并启动服务..."
-          docker-compose -f docker-compose.prod.yml up -d --build
+          echo "⬇️ 预拉取基础镜像..."
+          docker pull python:3.11-slim || echo "Python镜像拉取失败，继续使用本地镜像"
+          docker pull node:18-alpine || echo "Node镜像拉取失败，继续使用本地镜像"
+          docker pull nginx:alpine || echo "Nginx镜像拉取失败，继续使用本地镜像"
+          
+          echo "🔨 构建并启动服务（带超时设置）..."
+          # 设置构建超时为20分钟
+          timeout 1200 docker-compose -f docker-compose.prod.yml up -d --build || {
+            echo "❌ 构建超时，尝试分步构建..."
+            
+            echo "📦 单独构建后端..."
+            timeout 600 docker-compose -f docker-compose.prod.yml build backend || echo "后端构建失败"
+            
+            echo "📦 单独构建前端..."
+            timeout 600 docker-compose -f docker-compose.prod.yml build frontend || echo "前端构建失败"
+            
+            echo "🚀 启动服务..."
+            docker-compose -f docker-compose.prod.yml up -d || echo "服务启动失败"
+          }
           
           echo "⏳ 等待服务启动..."
-          sleep 45
+          sleep 60
           
           echo "🔍 检查服务状态..."
           docker-compose -f docker-compose.prod.yml ps

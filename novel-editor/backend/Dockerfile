@@ -4,6 +4,12 @@ FROM python:3.11-slim as base
 # 设置工作目录
 WORKDIR /app
 
+# 设置pip镜像源和超时
+ENV PIP_DEFAULT_TIMEOUT=100 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
     gcc \
@@ -26,8 +32,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # 复制依赖文件
 COPY --chown=app:app requirements.txt .
 
-# 安装Python依赖
-RUN pip install --user --no-cache-dir -r requirements.txt
+# 安装Python依赖（增加超时和重试）
+RUN pip install --user --no-cache-dir --timeout 300 --retries 3 -r requirements.txt
 
 # 开发阶段
 FROM base as development

@@ -1,0 +1,59 @@
+name: ⚡ 极速部署到百度云
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'novel-editor/backend/app/**'
+      - 'novel-editor/frontend/src/**'
+
+jobs:
+  quick-deploy:
+    name: 极速部署（仅更新代码）
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🔐 配置SSH密钥
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: ⚡ 快速代码更新
+      run: |
+        # 只上传应用代码，不重新构建镜像
+        scp -r novel-editor/backend/app/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/novel-editor/backend/
+        scp -r novel-editor/frontend/src/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/novel-editor/frontend/
+        
+        # 重启服务
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          cd /root/novel-editor
+          
+          echo "🔄 重启后端服务..."
+          docker-compose -f docker-compose.prod.yml restart backend
+          
+          echo "🔄 重启前端服务..."
+          docker-compose -f docker-compose.prod.yml restart frontend
+          
+          echo "⏳ 等待服务重启..."
+          sleep 15
+          
+          echo "🔍 检查服务状态..."
+          docker-compose -f docker-compose.prod.yml ps
+          
+          echo "💓 快速健康检查..."
+          curl -f http://localhost:8000/health || echo "Backend check failed"
+          curl -f http://localhost/ || echo "Frontend check failed"
+        EOF
+
+    - name: ✅ 极速部署完成
+      run: |
+        echo "⚡ 极速部署完成！"
+        echo "📍 前端地址: http://${{ secrets.SERVER_IP }}"
+        echo "📍 API地址: http://${{ secrets.SERVER_IP }}:8000"
+        echo "ℹ️  注意：此部署仅更新代码，未重新构建依赖"

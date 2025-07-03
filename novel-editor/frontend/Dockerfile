@@ -3,11 +3,19 @@ FROM node:18-alpine as base
 
 WORKDIR /app
 
+# 设置npm镜像源
+RUN npm config set registry https://registry.npmmirror.com \
+    && npm config set timeout 300000
+
 # 安装基本工具
 RUN apk add --no-cache curl
 
 # 检查并安装yarn（如果需要）
 RUN yarn --version || npm install -g yarn
+
+# 设置yarn镜像源
+RUN yarn config set registry https://registry.npmmirror.com \
+    && yarn config set network-timeout 300000
 
 # 创建非root用户
 RUN addgroup -g 1001 -S nodejs && \
