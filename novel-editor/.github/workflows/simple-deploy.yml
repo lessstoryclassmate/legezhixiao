@@ -1,0 +1,86 @@
+name: 🚀 AI小说编辑器自动部署
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: 部署到百度云服务器
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 检出代码
+      uses: actions/checkout@v4
+
+    - name: 🔐 配置SSH密钥
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: 📦 创建环境配置文件
+      run: |
+        cat > .env.prod << EOF
+        # 应用配置
+        DEBUG=false
+        ENVIRONMENT=production
+        
+        # 数据库配置
+        DATABASE_PORT=3306
+        DATABASE_SYSTEMIP=${{ secrets.DATABASE_SYSTEMIP }}
+        DATABASE_SYSTEM=${{ secrets.DATABASE_SYSTEM }}
+        DATABASE_USER=${{ secrets.DATABASE_USER }}
+        DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+        DATABASE_NOVELIP=${{ secrets.DATABASE_NOVELIP }}
+        DATABASE_NOVELDATA=${{ secrets.DATABASE_NOVELDATA }}
+        DATABASE_NOVELUSER=${{ secrets.DATABASE_NOVELUSER }}
+        DATABASE_NOVELUSER_PASSWORD=${{ secrets.DATABASE_NOVELUSER_PASSWORD }}
+        
+        # AI服务配置
+        SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+        DEFAULT_AI_MODEL=deepseek-ai/DeepSeek-V3
+        
+        # 安全配置
+        SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+        ALGORITHM=HS256
+        ACCESS_TOKEN_EXPIRE_MINUTES=30
+        EOF
+
+    - name: 🚀 部署到服务器
+      run: |
+        # 上传文件到服务器
+        scp -r . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/root/novel-editor/
+        
+        # 在服务器上执行部署
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          cd /root/novel-editor
+          
+          # 停止现有服务
+          docker-compose down || true
+          
+          # 清理旧镜像
+          docker system prune -f
+          
+          # 构建并启动服务
+          docker-compose -f docker-compose.prod.yml up -d --build
+          
+          # 等待服务启动
+          sleep 30
+          
+          # 检查服务状态
+          docker-compose ps
+          
+          # 健康检查
+          curl -f http://localhost:8000/health || echo "Health check failed"
+        EOF
+
+    - name: ✅ 部署验证
+      run: |
+        echo "🎉 部署完成！"
+        echo "前端地址: http://${{ secrets.SERVER_IP }}"
+        echo "API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
+        echo "健康检查: http://${{ secrets.SERVER_IP }}:8000/health"
