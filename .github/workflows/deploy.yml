@@ -31,8 +31,12 @@ jobs:
         JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
         REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-        MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
-        MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        DATABASE_SYSTEMHOST: ${{ secrets.DATABASE_SYSTEMHOST }}
+        DATABASE_USER: ${{ secrets.DATABASE_USER }}
+        DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+        DATABASE_NOVELHOST: ${{ secrets.DATABASE_NOVELHOST }}
+        DATABASE_NOVELUSER: ${{ secrets.DATABASE_NOVELUSER }}
+        DATABASE_NOVELUSER_PASSWORD: ${{ secrets.DATABASE_NOVELUSER_PASSWORD }}
       run: |
         ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
           # 项目部署目录
@@ -56,15 +60,46 @@ jobs:
           
           # 创建环境变量文件
           cat > .env << EOF
+          # SiliconFlow API配置
           SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+          SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
+          SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+          
+          # JWT密钥
           JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          
+          # MongoDB配置
           MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}
+          
+          # Redis配置
           REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-          MYSQL_HOST=${{ secrets.MYSQL_HOST }}
-          MYSQL_PORT=3306
-          MYSQL_USER=${{ secrets.MYSQL_USER }}
-          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
-          MYSQL_DATABASE=ai_novel_cloud
+          
+          # 系统数据库配置
+          DATABASE_SYSTEMHOST=${{ secrets.DATABASE_SYSTEMHOST }}
+          DATABASE_SYSTEM=novel_data
+          DATABASE_USER=${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+          
+          # 用户数据库配置
+          DATABASE_NOVELHOST=${{ secrets.DATABASE_NOVELHOST }}
+          DATABASE_NOVELDATA=novel_user_data
+          DATABASE_NOVELUSER=${{ secrets.DATABASE_NOVELUSER }}
+          DATABASE_NOVELUSER_PASSWORD=${{ secrets.DATABASE_NOVELUSER_PASSWORD }}
+          
+          # 服务器配置
+          SERVER_IP=${{ secrets.DEPLOY_HOST }}
+          
+          # MCP配置
+          MCP_SERVER_NAME=novel-ai-server
+          MCP_SERVER_PORT=8000
+          MCP_SERVER_HOST=${{ secrets.DEPLOY_HOST }}
+          MCP_TOOLS_ENABLED=true
+          MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
+          
+          # 小说生成配置
+          NOVEL_GENERATION_MAX_TOKENS=4096
+          NOVEL_GENERATION_TEMPERATURE=0.8
+          NOVEL_GENERATION_TOP_P=0.9
           EOF
           
           # 设置脚本权限

@@ -8,15 +8,47 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
     
+    # 服务器配置
+    SERVER_IP: str = "106.13.216.179"
+    SERVER_USER: str = "root"
+    SERVER_SSH_PORT: int = 22
+    SERVER_PORT: int = 22
+    
     # 数据库配置
     MONGODB_URL: str = "mongodb://localhost:27017/ai_novel_db"
-    MYSQL_URL: str = "mysql+aiomysql://user:password@localhost:3306/ai_novel_cloud"
+    DATABASE_SYSTEM_URL: str = "mysql+aiomysql://lkr:Lekairong350702@172.16.16.3:3306/novel_data"
+    DATABASE_NOVEL_URL: str = "mysql+aiomysql://novel_data_user:Lekairong350702@172.16.16.2:3306/novel_user_data"
     REDIS_URL: str = "redis://localhost:6379"
     
+    # 系统数据库配置
+    DATABASE_PORT: int = 3306
+    DATABASE_SYSTEMHOST: str = "172.16.16.3"
+    DATABASE_SYSTEM: str = "novel_data"
+    DATABASE_USER: str = "lkr"
+    DATABASE_PASSWORD: str = "Lekairong350702"
+    
+    # 用户数据库配置  
+    DATABASE_NOVELHOST: str = "172.16.16.2"
+    DATABASE_NOVELDATA: str = "novel_user_data"
+    DATABASE_NOVELUSER: str = "novel_data_user"
+    DATABASE_NOVELUSER_PASSWORD: str = "Lekairong350702"
+    
     # SiliconFlow API配置
-    SILICONFLOW_API_KEY: str = ""
-    SILICONFLOW_API_URL: str = "https://api.siliconflow.cn/v1"
-    SILICONFLOW_MODEL: str = "deepseek-v3"
+    SILICONFLOW_API_KEY: str = "sk-mjithqmjwccqgffouexthbavtnvftwkqjludpcxhrmeztcib"
+    SILICONFLOW_API_URL: str = "https://api.siliconflow.cn/v1/chat/completions"
+    SILICONFLOW_DEFAULT_MODEL: str = "deepseek-ai/DeepSeek-V3"
+    
+    # MCP接口配置
+    MCP_SERVER_NAME: str = "novel-ai-server"
+    MCP_SERVER_PORT: int = 8000
+    MCP_SERVER_HOST: str = "106.13.216.179"
+    MCP_TOOLS_ENABLED: bool = True
+    MCP_TOOLS_LIST: str = "novel_generation,character_creation,plot_analysis,content_review,style_transfer"
+    
+    # 小说生成相关配置
+    NOVEL_GENERATION_MAX_TOKENS: int = 4096
+    NOVEL_GENERATION_TEMPERATURE: float = 0.8
+    NOVEL_GENERATION_TOP_P: float = 0.9
     
     # JWT配置
     JWT_SECRET_KEY: str = "your-secret-key-here"
@@ -27,8 +59,12 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:80",
         "http://127.0.0.1:80",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
         "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "http://106.13.216.179:80",
+        "http://106.13.216.179:8080"
     ]
     
     # 文件上传配置

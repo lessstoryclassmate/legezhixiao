@@ -8,9 +8,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:80"
+      - "8080:80"  # 监听端口映射
     environment:
       - VITE_API_BASE_URL=http://backend:8000
-      - VITE_SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+      - VITE_SILICONFLOW_API_URL=${SILICONFLOW_API_URL}
     depends_on:
       - backend
     networks:
@@ -24,12 +25,25 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+      - "3000:8000"  # 开发端口映射
     environment:
-      - MONGODB_URL=mongodb://mongodb:27017/ai_novel_db
-      - MYSQL_URL=mysql+aiomysql://username:password@mysql-host:3306/ai_novel_cloud
+      - MONGODB_URL=mongodb://admin:${MONGO_PASSWORD}@mongodb:27017/ai_novel_db?authSource=admin
+      - DATABASE_SYSTEM_URL=mysql+aiomysql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_SYSTEMHOST}:3306/${DATABASE_SYSTEM}
+      - DATABASE_NOVEL_URL=mysql+aiomysql://${DATABASE_NOVELUSER}:${DATABASE_NOVELUSER_PASSWORD}@${DATABASE_NOVELHOST}:3306/${DATABASE_NOVELDATA}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - SILICONFLOW_DEFAULT_MODEL=${SILICONFLOW_DEFAULT_MODEL}
+      - SILICONFLOW_API_URL=${SILICONFLOW_API_URL}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - CORS_ORIGINS=http://localhost:80,http://127.0.0.1:80
+      - CORS_ORIGINS=http://localhost:80,http://127.0.0.1:80,http://localhost:8080,http://127.0.0.1:8080,http://${SERVER_IP}:80,http://${SERVER_IP}:8080
+      - MCP_SERVER_NAME=${MCP_SERVER_NAME}
+      - MCP_SERVER_PORT=${MCP_SERVER_PORT}
+      - MCP_SERVER_HOST=${MCP_SERVER_HOST}
+      - MCP_TOOLS_ENABLED=${MCP_TOOLS_ENABLED}
+      - MCP_TOOLS_LIST=${MCP_TOOLS_LIST}
+      - NOVEL_GENERATION_MAX_TOKENS=${NOVEL_GENERATION_MAX_TOKENS}
+      - NOVEL_GENERATION_TEMPERATURE=${NOVEL_GENERATION_TEMPERATURE}
+      - NOVEL_GENERATION_TOP_P=${NOVEL_GENERATION_TOP_P}
     depends_on:
       - mongodb
     networks:
