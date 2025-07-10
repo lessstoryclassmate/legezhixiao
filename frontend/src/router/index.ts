@@ -13,6 +13,31 @@ const routes = [
     component: () => import('../views/Novels.vue')
   },
   {
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/Auth.vue')
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/Auth.vue')
+  },
+  {
+    path: '/novel/:id/edit',
+    name: 'NovelEdit',
+    component: () => import('../views/NovelEditor.vue')
+  },
+  {
+    path: '/characters',
+    name: 'Characters',
+    component: () => import('../views/Characters.vue')
+  },
+  {
+    path: '/tools',
+    name: 'Tools',
+    component: () => import('../views/Tools.vue')
+  },
+  {
     path: '/about',
     name: 'About',
     component: () => import('../views/About.vue')
