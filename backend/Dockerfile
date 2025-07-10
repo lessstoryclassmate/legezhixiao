@@ -32,5 +32,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
+# 复制启动脚本
+COPY start.sh /app/start.sh
+COPY start-fixed.sh /app/start-fixed.sh
+RUN chmod +x /app/start.sh /app/start-fixed.sh
+
 # 启动应用
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
+CMD ["/app/start.sh"]

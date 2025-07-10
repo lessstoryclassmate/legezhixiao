@@ -3,11 +3,13 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
+pyjwt==2.8.0
 passlib[bcrypt]==1.7.4
 python-dotenv==1.0.0
 
 # 数据库驱动
-motor==3.3.2                    # MongoDB异步驱动
+motor==3.5.1                    # MongoDB异步驱动 (兼容新版PyMongo)
+pymongo==4.8.0                  # 指定兼容的PyMongo版本
 aiomysql==0.2.0                 # MySQL异步驱动
 sqlalchemy==2.0.23              # SQL ORM
 alembic==1.13.1                 # 数据库迁移
