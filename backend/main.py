@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from contextlib import asynccontextmanager
+from datetime import datetime
 import os
 from dotenv import load_dotenv
 
@@ -61,27 +62,33 @@ async def root():
 # 健康检查
 @app.get("/health")
 async def health_check():
-    try:
-        # 检查MongoDB连接
-        await mongodb.admin.command('ping')
-        mongodb_status = "healthy"
-    except Exception as e:
-        mongodb_status = f"unhealthy: {str(e)}"
-    
-    try:
-        # 检查Redis连接
-        await redis_client.ping()
-        redis_status = "healthy"
-    except Exception as e:
-        redis_status = f"unhealthy: {str(e)}"
-    
-    return {
+    """
+    健康检查端点，检查服务和依赖状态
+    即使某些依赖不可用，也会返回部分状态信息
+    """
+    health_status = {
         "status": "healthy",
-        "services": {
-            "mongodb": mongodb_status,
-            "redis": redis_status
-        }
+        "services": {},
+        "timestamp": str(datetime.now())
     }
+    
+    # 检查MongoDB连接
+    try:
+        await mongodb.admin.command('ping')
+        health_status["services"]["mongodb"] = "healthy"
+    except Exception as e:
+        health_status["services"]["mongodb"] = f"unhealthy: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # 检查Redis连接
+    try:
+        await redis_client.ping()
+        health_status["services"]["redis"] = "healthy"
+    except Exception as e:
+        health_status["services"]["redis"] = f"unhealthy: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    return health_status
 
 if __name__ == "__main__":
     import uvicorn

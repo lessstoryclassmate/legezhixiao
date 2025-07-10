@@ -69,16 +69,85 @@ jobs:
     - name: Test Docker containers
       run: |
         # 启动服务进行测试
+        echo "🚀 启动Docker服务..."
         docker-compose up -d
+        
+        # 等待容器启动
+        echo "⏳ 等待容器启动和初始化..."
         sleep 30
         
-        # 检查服务状态
+        # 检查所有容器状态
+        echo "🔍 检查所有容器状态..."
         docker-compose ps
         
-        # 基础健康检查
-        curl -f http://localhost:8000/health || exit 1
+        # 检查每个容器的启动状态
+        echo "📊 检查各个容器的详细状态..."
+        for service in backend frontend mongodb redis; do
+          echo "--- 检查 $service 服务 ---"
+          docker-compose ps $service
+          
+          # 检查容器是否在运行
+          if docker-compose ps $service | grep -q "Up"; then
+            echo "✅ $service 容器正在运行"
+          else
+            echo "❌ $service 容器未正常运行"
+            echo "📋 $service 容器日志:"
+            docker-compose logs $service
+          fi
+        done
+        
+        # 等待后端应用完全启动
+        echo "⏳ 等待后端应用完全启动..."
+        sleep 30
+        
+        # 检查端口监听状态
+        echo "🔍 检查端口监听状态..."
+        echo "--- 检查端口8000 (后端) ---"
+        netstat -tlnp | grep :8000 || echo "❌ 端口8000未监听"
+        
+        echo "--- 检查端口27017 (MongoDB) ---"
+        netstat -tlnp | grep :27017 || echo "❌ 端口27017未监听"
+        
+        echo "--- 检查端口6379 (Redis) ---"
+        netstat -tlnp | grep :6379 || echo "❌ 端口6379未监听"
+        
+        # 输出后端容器详细日志
+        echo "📋 后端容器详细日志:"
+        docker-compose logs backend
+        
+        # 检查后端容器内的进程
+        echo "🔍 检查后端容器内的进程..."
+        docker-compose exec -T backend ps aux || echo "无法检查后端容器进程"
+        
+        # 检查后端容器内的网络监听
+        echo "🔍 检查后端容器内的网络监听..."
+        docker-compose exec -T backend netstat -tlnp || echo "无法检查后端容器网络"
+        
+        # 尝试直接连接到后端容器
+        echo "🔗 尝试直接连接到后端容器..."
+        docker-compose exec -T backend curl -f http://localhost:8000/health || echo "无法连接到后端容器内部"
+        
+        # 多次尝试健康检查
+        echo "🏥 执行健康检查..."
+        for i in {1..5}; do
+          echo "尝试第 $i 次健康检查..."
+          if curl -f http://localhost:8000/health; then
+            echo "✅ 健康检查成功"
+            break
+          else
+            echo "❌ 健康检查失败，等待10秒后重试..."
+            sleep 10
+          fi
+          
+          if [ $i -eq 5 ]; then
+            echo "❌ 健康检查最终失败，输出所有容器日志..."
+            docker-compose logs
+            exit 1
+          fi
+        done
         
         # 停止测试容器
+        echo "🛑 停止测试容器..."
         docker-compose down
 
   # 部署到生产环境

@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     pkg-config \
     default-libmysqlclient-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
@@ -27,5 +28,9 @@ RUN mkdir -p logs
 # 暴露端口
 EXPOSE 8000
 
+# 添加健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
 # 启动应用
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
