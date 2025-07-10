@@ -1,0 +1,290 @@
+# GitHub Actions 工作流程优化版本
+
+name: Deploy AI Novel Editor
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  PROJECT_NAME: ai-novel-editor
+  DEPLOY_DIR: /opt/ai-novel-editor
+
+jobs:
+  # 代码质量检查
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        
+    - name: Run Python linting
+      run: |
+        cd backend
+        python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Run frontend linting
+      run: |
+        cd frontend
+        npm run lint
+
+  # 构建测试
+  build:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build Docker images
+      run: |
+        docker-compose build --no-cache
+        
+    - name: Test Docker containers
+      run: |
+        # 启动服务进行测试
+        docker-compose up -d
+        sleep 30
+        
+        # 检查服务状态
+        docker-compose ps
+        
+        # 基础健康检查
+        curl -f http://localhost:8000/health || exit 1
+        
+        # 停止测试容器
+        docker-compose down
+
+  # 部署到生产环境
+  deploy:
+    needs: [quality-check, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        
+    - name: Add server to known hosts
+      run: |
+        ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: Check server connectivity
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'echo "Server connected successfully"'
+        
+    - name: Deploy to production server
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+        JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+        MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        MYSQL_HOST: ${{ secrets.MYSQL_HOST }}
+        MYSQL_USER: ${{ secrets.MYSQL_USER }}
+        MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+      run: |
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
+          set -e
+          
+          echo "🚀 开始部署AI小说编辑器..."
+          
+          # 设置部署目录
+          PROJECT_DIR="${{ env.DEPLOY_DIR }}"
+          BACKUP_DIR="/opt/backups/ai-novel-editor-$(date +%Y%m%d_%H%M%S)"
+          
+          # 创建目录
+          sudo mkdir -p "$PROJECT_DIR"
+          sudo mkdir -p "$(dirname "$BACKUP_DIR")"
+          sudo chown $USER:$USER "$PROJECT_DIR"
+          sudo chown $USER:$USER "$(dirname "$BACKUP_DIR")"
+          
+          # 备份现有部署
+          if [ -d "$PROJECT_DIR/.git" ]; then
+            echo "📦 备份现有部署..."
+            cp -r "$PROJECT_DIR" "$BACKUP_DIR"
+            echo "✅ 备份完成: $BACKUP_DIR"
+          fi
+          
+          # 进入项目目录
+          cd "$PROJECT_DIR"
+          
+          # 克隆或更新代码
+          if [ -d ".git" ]; then
+            echo "📦 更新代码..."
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
+          else
+            echo "📦 克隆代码..."
+            git clone ${{ github.server_url }}/${{ github.repository }}.git .
+          fi
+          
+          # 创建环境变量文件
+          echo "🔧 配置环境变量..."
+          cat > .env << EOF
+          # 应用配置
+          APP_NAME=AI小说内容编辑器
+          APP_VERSION=1.0.0
+          DEBUG=false
+          
+          # API配置
+          SILICONFLOW_API_KEY=${{ secrets.SILICONFLOW_API_KEY }}
+          SILICONFLOW_API_URL=https://api.siliconflow.cn/v1
+          SILICONFLOW_MODEL=deepseek-v3
+          
+          # JWT配置
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          JWT_ALGORITHM=HS256
+          JWT_EXPIRE_MINUTES=10080
+          
+          # 数据库配置
+          MONGODB_URL=mongodb://admin:${{ secrets.MONGO_PASSWORD }}@mongodb:27017/ai_novel_db?authSource=admin
+          REDIS_URL=redis://:${{ secrets.REDIS_PASSWORD }}@redis:6379
+          MYSQL_HOST=${{ secrets.MYSQL_HOST }}
+          MYSQL_PORT=3306
+          MYSQL_USER=${{ secrets.MYSQL_USER }}
+          MYSQL_PASSWORD=${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE=ai_novel_cloud
+          
+          # 密码配置
+          MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          
+          # CORS配置
+          CORS_ORIGINS=http://${{ secrets.DEPLOY_HOST }}:80,https://${{ secrets.DEPLOY_HOST }}
+          EOF
+          
+          # 设置脚本权限
+          chmod +x scripts/*.sh
+          
+          # 停止现有服务
+          echo "🛑 停止现有服务..."
+          docker-compose down || true
+          
+          # 清理Docker缓存
+          echo "🧹 清理Docker缓存..."
+          docker system prune -f || true
+          
+          # 构建和启动服务
+          echo "🔧 构建和启动服务..."
+          docker-compose build --no-cache
+          docker-compose up -d
+          
+          echo "✅ 部署完成！"
+        '
+        
+    - name: Wait for services to start
+      run: |
+        echo "⏳ 等待服务启动..."
+        sleep 60
+        
+    - name: Health check
+      run: |
+        echo "🔍 执行健康检查..."
+        
+        # 检查前端服务
+        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:80; then
+          echo "✅ 前端服务正常"
+        else
+          echo "❌ 前端服务异常"
+          exit 1
+        fi
+        
+        # 检查后端API
+        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:8000/health; then
+          echo "✅ 后端API正常"
+        else
+          echo "❌ 后端API异常"
+          exit 1
+        fi
+        
+        # 检查API文档
+        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:8000/docs; then
+          echo "✅ API文档正常"
+        else
+          echo "⚠️ API文档可能异常"
+        fi
+        
+    - name: Deployment notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 部署成功！"
+          echo "🌐 前端地址: http://${{ secrets.DEPLOY_HOST }}:80"
+          echo "🔧 后端API: http://${{ secrets.DEPLOY_HOST }}:8000"
+          echo "📚 API文档: http://${{ secrets.DEPLOY_HOST }}:8000/docs"
+        else
+          echo "❌ 部署失败！"
+          echo "请检查日志并修复问题"
+        fi
+        
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        echo "🔄 部署失败，执行回滚..."
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
+          cd ${{ env.DEPLOY_DIR }}
+          
+          # 查找最新备份
+          LATEST_BACKUP=$(ls -t /opt/backups/ai-novel-editor-* 2>/dev/null | head -1)
+          
+          if [ -n "$LATEST_BACKUP" ]; then
+            echo "📦 回滚到备份: $LATEST_BACKUP"
+            
+            # 停止当前服务
+            docker-compose down || true
+            
+            # 恢复备份
+            cp -r "$LATEST_BACKUP"/* .
+            
+            # 重启服务
+            docker-compose up -d
+            
+            echo "✅ 回滚完成"
+          else
+            echo "⚠️ 未找到备份文件"
+          fi
+        '
+
+  # 部署到开发环境
+  deploy-dev:
+    needs: [quality-check, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+    - name: Deploy to development
+      run: |
+        echo "🚀 部署到开发环境..."
+        # 这里可以配置开发环境的部署逻辑
+        echo "✅ 开发环境部署完成"
