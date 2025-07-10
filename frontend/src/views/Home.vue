@@ -78,6 +78,9 @@ const goToAbout = () => {
   display: flex;
   gap: 1rem;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2rem;
 }
 
 .btn {
@@ -89,6 +92,9 @@ const goToAbout = () => {
   background: #f5f5f5;
   color: #333;
   transition: all 0.3s;
+  min-width: 120px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .btn:hover {
@@ -140,5 +146,31 @@ const goToAbout = () => {
 .feature-card p {
   color: #666;
   line-height: 1.6;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 2rem;
+  }
+  
+  .hero p {
+    font-size: 1rem;
+  }
+  
+  .actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+  }
+  
+  .btn {
+    width: 200px;
+    padding: 14px 24px;
+  }
+  
+  .home {
+    padding: 1rem;
+  }
 }
 </style>
