@@ -221,7 +221,7 @@ jobs:
         # 创建环境变量文件
         echo "🔧 配置环境变量..."
         cat > .env << EOF
-        SERVER_IP=$DEPLOY_HOST
+        SERVER_IP=$SERVER_IP
         SERVER_USER=root
         SERVER_SSH_PORT=22
         SERVER_PORT=22
@@ -230,7 +230,7 @@ jobs:
         SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
         MCP_SERVER_NAME=novel-ai-server
         MCP_SERVER_PORT=8000
-        MCP_SERVER_HOST=$DEPLOY_HOST
+        MCP_SERVER_HOST=$SERVER_IP
         MCP_TOOLS_ENABLED=true
         MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
         NOVEL_GENERATION_MAX_TOKENS=4096
@@ -249,7 +249,6 @@ jobs:
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
-        DEPLOY_HOST=$DEPLOY_HOST
         EOF
         
         echo "🔍 验证MongoDB配置..."
@@ -263,6 +262,14 @@ jobs:
         echo "🛑 停止现有服务..."
         docker-compose down || true
         
+        # 检查并清理有问题的 MongoDB 数据卷
+        echo "🔍 检查 MongoDB 数据卷状态..."
+        if docker volume ls | grep -q "legezhixiao_mongodb_data"; then
+            echo "发现现有 MongoDB 数据卷，为避免重启问题，将进行清理..."
+            docker volume rm legezhixiao_mongodb_data || true
+            echo "✅ MongoDB 数据卷已清理"
+        fi
+        
         # 清理Docker缓存
         echo "🧹 清理Docker缓存..."
         docker system prune -f || true
@@ -270,6 +277,32 @@ jobs:
         # 构建和启动服务
         echo "🔧 构建和启动服务..."
         docker-compose build --no-cache
+        
+        # 分阶段启动服务，确保 MongoDB 先启动
+        echo "🍃 启动 MongoDB..."
+        docker-compose up -d mongodb
+        
+        echo "⏳ 等待 MongoDB 启动..."
+        sleep 60
+        
+        # 检查 MongoDB 健康状态
+        for i in {1..10}; do
+            if docker-compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" 2>/dev/null; then
+                echo "✅ MongoDB 启动成功"
+                break
+            else
+                echo "⏳ 等待 MongoDB 启动... ($i/10)"
+                sleep 10
+            fi
+            
+            if [ $i -eq 10 ]; then
+                echo "❌ MongoDB 启动失败"
+                docker-compose logs mongodb --tail=20
+                exit 1
+            fi
+        done
+        
+        echo "🚀 启动其他服务..."
         docker-compose up -d
         
         echo "✅ 部署完成！"

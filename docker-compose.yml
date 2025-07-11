@@ -73,7 +73,8 @@ services:
       - ./database/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     networks:
       - app-network
-    restart: unless-stopped
+    restart: always
+    command: mongod --wiredTigerCacheSizeGB 0.25
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 15s
