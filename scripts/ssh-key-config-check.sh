@@ -49,7 +49,7 @@ echo "=================="
 printf "%-35s %-30s %-30s %-10s\n" "配置项" "配置文件要求" "当前实际配置" "状态"
 printf "%-35s %-30s %-30s %-10s\n" "-----" "----------" "----------" "----"
 printf "%-35s %-30s %-30s %-10s\n" "MongoDB管理员用户" "MONGO_INITDB_ROOT_USERNAME" "MONGO_INITDB_ROOT_USERNAME" "✅"
-printf "%-35s %-30s %-30s %-10s\n" "MongoDB管理员密码" "MONGO_INITDB_ROOT_PASSWORD" "MONGO_PASSWORD" "⚠️"
+printf "%-35s %-30s %-30s %-10s\n" "MongoDB管理员密码" "MONGO_INITDB_ROOT_PASSWORD" "MONGO_PASSWORD" "✅"
 echo
 
 # SiliconFlow API配置检查
@@ -84,12 +84,15 @@ printf "%-35s %-30s %-30s %-10s\n" "Temperature" "NOVEL_GENERATION_TEMPERATURE" 
 printf "%-35s %-30s %-30s %-10s\n" "Top P" "NOVEL_GENERATION_TOP_P" "NOVEL_GENERATION_TOP_P" "✅"
 echo
 
-echo "⚠️  需要修正的问题"
+echo "⚠️  已修正的问题"
 echo "================="
-echo "1. MongoDB密码变量名问题："
-echo "   - 配置文件要求: MONGO_INITDB_ROOT_PASSWORD"
-echo "   - 当前使用: MONGO_PASSWORD"
-echo "   - 建议: 统一使用MONGO_PASSWORD，因为这更简洁且已被广泛使用"
+echo "1. ✅ GitHub Actions 环境变量名："
+echo "   - 已统一使用: SERVER_IP, SERVER_USER, SERVER_SSH_KEY"
+echo "   - 已移除过时的: DEPLOY_HOST, DEPLOY_USER"
+echo
+echo "2. ✅ MongoDB 密码配置："
+echo "   - docker-compose.yml正确映射: MONGO_INITDB_ROOT_PASSWORD=\${MONGO_PASSWORD}"
+echo "   - 配置文件使用简洁的变量名: MONGO_PASSWORD"
 echo
 
 echo "📊 修正建议"

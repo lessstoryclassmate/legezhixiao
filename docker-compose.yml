@@ -45,12 +45,19 @@ services:
       - NOVEL_GENERATION_TEMPERATURE=${NOVEL_GENERATION_TEMPERATURE}
       - NOVEL_GENERATION_TOP_P=${NOVEL_GENERATION_TOP_P}
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
     volumes:
       - ./backend/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
 
   # MongoDB数据库
   mongodb:
@@ -58,7 +65,7 @@ services:
     ports:
       - "27017:27017"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
       - MONGO_INITDB_DATABASE=ai_novel_db
     volumes:
@@ -67,6 +74,12 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # Redis缓存 (用于会话管理)
   redis:

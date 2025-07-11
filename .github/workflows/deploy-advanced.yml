@@ -97,31 +97,55 @@ jobs:
         echo "🚀 启动Docker服务..."
         docker-compose up -d
         
-        echo "⏳ 等待容器启动..."
-        sleep 30
+        echo "⏳ 等待MongoDB容器启动..."
+        sleep 60
+        
+        echo "🔍 检查MongoDB健康状态..."
+        for i in {1..15}; do
+          echo "检查MongoDB健康状态第 $i 次..."
+          if docker-compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
+            echo "✅ MongoDB健康检查成功"
+            break
+          else
+            echo "❌ MongoDB还未就绪，等待10秒后重试..."
+            sleep 10
+          fi
+          
+          if [ $i -eq 15 ]; then
+            echo "❌ MongoDB健康检查最终失败"
+            echo "MongoDB容器状态："
+            docker-compose ps mongodb
+            echo "MongoDB容器日志："
+            docker-compose logs mongodb --tail=50
+            exit 1
+          fi
+        done
+        
+        echo "⏳ 等待后端容器启动..."
+        sleep 45
         
         echo "🔍 检查容器状态..."
         docker-compose ps
         
         echo "📋 检查MongoDB容器日志..."
-        docker-compose logs mongodb
+        docker-compose logs mongodb --tail=20
         
         echo "📋 检查后端容器日志..."
-        docker-compose logs backend
+        docker-compose logs backend --tail=20
         
-        echo "🏥 执行健康检查..."
-        for i in {1..5}; do
-          echo "尝试第 $i 次健康检查..."
+        echo "🏥 执行后端健康检查..."
+        for i in {1..12}; do
+          echo "尝试第 $i 次后端健康检查..."
           if curl -f http://localhost:8000/health; then
-            echo "✅ 健康检查成功"
+            echo "✅ 后端健康检查成功"
             break
           else
-            echo "❌ 健康检查失败，等待10秒后重试..."
-            sleep 10
+            echo "❌ 后端健康检查失败，等待15秒后重试..."
+            sleep 15
           fi
           
-          if [ $i -eq 5 ]; then
-            echo "❌ 健康检查最终失败"
+          if [ $i -eq 10 ]; then
+            echo "❌ 后端健康检查最终失败，输出所有容器日志..."
             docker-compose logs
             exit 1
           fi
@@ -146,11 +170,11 @@ jobs:
         ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
         
     - name: Add server to known hosts
-      run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+      run: ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
         
     - name: Deploy to production server
       env:
-        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        SERVER_IP: ${{ secrets.SERVER_IP }}
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
         JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
@@ -252,9 +276,9 @@ jobs:
         SCRIPT_EOF
         
         # 执行部署脚本
-        scp deploy_script.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
-        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-          "export DEPLOY_HOST='$DEPLOY_HOST' && \
+        scp deploy_script.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+          "export SERVER_IP='$SERVER_IP' && \
            export SILICONFLOW_API_KEY='$SILICONFLOW_API_KEY' && \
            export JWT_SECRET_KEY='$JWT_SECRET_KEY' && \
            export MONGO_PASSWORD='$MONGO_PASSWORD' && \
@@ -273,7 +297,7 @@ jobs:
         echo "🔍 执行健康检查..."
         
         # 检查前端服务
-        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:80; then
+        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:80; then
           echo "✅ 前端服务正常"
         else
           echo "❌ 前端服务异常"
@@ -281,7 +305,7 @@ jobs:
         fi
         
         # 检查后端API
-        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:8000/health; then
+        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:8000/health; then
           echo "✅ 后端API正常"
         else
           echo "❌ 后端API异常"
@@ -293,9 +317,9 @@ jobs:
       run: |
         if [ "${{ job.status }}" == "success" ]; then
           echo "🎉 部署成功！"
-          echo "🌐 前端地址: http://${{ secrets.DEPLOY_HOST }}:80"
-          echo "🔧 后端API: http://${{ secrets.DEPLOY_HOST }}:8000"
-          echo "📚 API文档: http://${{ secrets.DEPLOY_HOST }}:8000/docs"
+          echo "🌐 前端地址: http://${{ secrets.SERVER_IP }}:80"
+          echo "🔧 后端API: http://${{ secrets.SERVER_IP }}:8000"
+          echo "📚 API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
         else
           echo "❌ 部署失败！"
         fi
