@@ -27,10 +27,34 @@ docker network ls
 
 echo "应用网络详情:"
 if docker network inspect app-network >/dev/null 2>&1; then
-  docker network inspect app-network | jq '.[] | {Name: .Name, Driver: .Driver, Containers: .Containers}' 2>/dev/null || docker network inspect app-network | head -30
+  echo "✅ app-network 网络存在"
+  echo "网络配置:"
+  docker network inspect app-network | jq '.[] | {Name: .Name, Driver: .Driver, Subnet: .IPAM.Config[0].Subnet, Gateway: .IPAM.Config[0].Gateway, Containers: (.Containers | keys)}' 2>/dev/null || docker network inspect app-network | head -30
+  
+  echo "连接到网络的容器:"
+  docker network inspect app-network | jq '.[] | .Containers | to_entries[] | {Name: .value.Name, IPv4Address: .value.IPv4Address}' 2>/dev/null || echo "无法解析容器信息"
 else
   echo "❌ app-network 不存在"
+  echo "检查 Docker Compose 配置:"
+  docker-compose config | grep -A 5 networks: || echo "无法获取网络配置"
 fi
+
+echo "=== Docker Compose 服务状态 ==="
+docker-compose ps --format "table"
+
+echo "=== 容器网络接口 ==="
+for service in mongodb redis backend; do
+  echo "--- $service 网络接口 ---"
+  if docker-compose ps $service | grep -q "Up"; then
+    # 优先使用 ip 命令，回退到其他命令
+    docker-compose exec -T $service ip addr show 2>/dev/null || \
+    docker-compose exec -T $service ifconfig 2>/dev/null || \
+    docker-compose exec -T $service cat /proc/net/dev 2>/dev/null || \
+    echo "$service 容器网络接口信息获取失败"
+  else
+    echo "$service 容器未运行"
+  fi
+done
 
 echo "=== 端口检查 ==="
 echo "主机端口占用情况:"
@@ -48,6 +72,16 @@ if docker-compose exec -T backend ping -c 1 redis >/dev/null 2>&1; then
 else
   echo "❌ backend -> redis 网络不通"
 fi
+
+echo "=== 容器网络信息 ==="
+echo "Backend 容器网络信息:"
+docker-compose exec -T backend ip addr show 2>/dev/null || docker-compose exec -T backend ifconfig 2>/dev/null || echo "无法获取网络接口信息"
+
+echo "Backend 路由表:"
+docker-compose exec -T backend ip route 2>/dev/null || docker-compose exec -T backend route -n 2>/dev/null || echo "无法获取路由信息"
+
+echo "Backend DNS解析:"
+docker-compose exec -T backend nslookup mongodb 2>/dev/null || docker-compose exec -T backend host mongodb 2>/dev/null || echo "DNS解析检查失败"
 
 echo "=== 服务健康状态 ==="
 # MongoDB

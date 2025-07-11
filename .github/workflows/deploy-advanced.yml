@@ -101,6 +101,43 @@ jobs:
       
     - name: Build Docker images
       run: docker-compose build --no-cache
+    
+    - name: Verify Docker network setup
+      run: |
+        echo "🔍 验证 Docker Compose 配置..."
+        docker-compose config --quiet
+        
+        echo "🚀 启动服务并验证网络创建..."
+        docker-compose up -d --remove-orphans
+        
+        echo "⏳ 等待网络创建..."
+        sleep 10
+        
+        echo "🔍 检查网络是否创建成功..."
+        if docker network inspect app-network >/dev/null 2>&1; then
+          echo "✅ app-network 网络创建成功"
+          docker network inspect app-network | head -20
+        else
+          echo "❌ app-network 网络创建失败"
+          echo "=== 可用网络列表 ==="
+          docker network ls
+          echo "=== Docker Compose 网络配置 ==="
+          docker-compose config | grep -A 10 networks:
+          exit 1
+        fi
+        
+        echo "🔍 检查容器网络连接..."
+        for service in mongodb redis backend; do
+          if docker-compose ps $service | grep -q "Up"; then
+            echo "✅ $service 容器运行中"
+          else
+            echo "❌ $service 容器未运行"
+            docker-compose logs $service
+          fi
+        done
+        
+        echo "🛑 停止服务进行完整重启..."
+        docker-compose down
         
     - name: Test Docker containers
       run: |
