@@ -46,6 +46,11 @@ services:
       - NOVEL_GENERATION_TOP_P=${NOVEL_GENERATION_TOP_P}
     networks:
       - app-network
+    extra_hosts:
+      - "mongodb-server:172.16.32.2"
+      - "redis-server:172.16.32.2"
+      - "mysql-system:172.16.16.3"
+      - "mysql-user:172.16.16.2"
     restart: unless-stopped
     volumes:
       - ./backend/logs:/app/logs

@@ -132,16 +132,61 @@ jobs:
               echo "📋 检查后端容器日志..."
               docker-compose logs --tail=30 backend
               echo "📋 检查网络连接状态..."
-              docker-compose exec backend ping -c 3 172.16.32.2 || echo "MongoDB/Redis连接测试失败"
-              docker-compose exec backend ping -c 3 172.16.16.3 || echo "MySQL系统库连接测试失败"
-              docker-compose exec backend ping -c 3 172.16.16.2 || echo "MySQL用户库连接测试失败"
+              
+              # 检查 MongoDB 连接
+              echo "🔍 测试 MongoDB 连接 (172.16.32.2:27017)..."
+              if docker-compose exec backend ping -c 3 172.16.32.2; then
+                echo "✅ MongoDB 服务器网络可达"
+                if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/27017"; then
+                  echo "✅ MongoDB 端口 27017 可连接"
+                else
+                  echo "❌ MongoDB 端口 27017 连接失败 - 可能是防火墙或服务未启动"
+                fi
+              else
+                echo "❌ MongoDB 服务器网络不可达 - 检查网络路由"
+              fi
+              
+              # 检查 Redis 连接
+              echo "🔍 测试 Redis 连接 (172.16.32.2:6379)..."
+              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/6379"; then
+                echo "✅ Redis 端口 6379 可连接"
+              else
+                echo "❌ Redis 端口 6379 连接失败"
+              fi
+              
+              # 检查 MySQL 连接
+              echo "🔍 测试 MySQL 系统库连接 (172.16.16.3:3306)..."
+              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.16.3/3306"; then
+                echo "✅ MySQL 系统库端口 3306 可连接"
+              else
+                echo "❌ MySQL 系统库端口 3306 连接失败"
+              fi
+              
+              echo "🔍 测试 MySQL 用户库连接 (172.16.16.2:3306)..."
+              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.16.2/3306"; then
+                echo "✅ MySQL 用户库端口 3306 可连接"
+              else
+                echo "❌ MySQL 用户库端口 3306 连接失败"
+              fi
+              
+              # 检查环境变量
+              echo "📋 检查数据库连接环境变量..."
+              docker-compose exec backend env | grep -E "(MONGODB|REDIS|DATABASE)" || echo "环境变量检查失败"
             fi
             sleep 15
           fi
           
           if [ $i -eq 12 ]; then
-            echo "❌ 后端健康检查最终失败，输出所有容器日志..."
-            docker-compose logs
+            echo "❌ 后端健康检查最终失败，输出详细诊断信息..."
+            echo "=== 容器状态 ==="
+            docker-compose ps
+            echo "=== 后端容器完整日志 ==="
+            docker-compose logs backend
+            echo "=== 前端容器日志 ==="
+            docker-compose logs frontend
+            echo "=== Docker 网络信息 ==="
+            docker network ls
+            docker network inspect $(docker-compose exec backend cat /proc/1/cgroup | head -1 | cut -d/ -f3 | cut -c1-12)_app-network 2>/dev/null || echo "网络检查失败"
             exit 1
           fi
         done
@@ -285,6 +330,41 @@ jobs:
         echo "MySQL系统库: 172.16.16.3:3306/novel_data"
         echo "MySQL用户库: 172.16.16.2:3306/novel_user_data"
         echo "Redis: 172.16.32.2:6379"
+        
+        # 检查数据库服务可达性
+        echo "🔍 检查数据库服务可达性..."
+        
+        # 检查 MongoDB
+        if timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/27017" 2>/dev/null; then
+          echo "✅ MongoDB (172.16.32.2:27017) 可连接"
+        else
+          echo "❌ MongoDB (172.16.32.2:27017) 连接失败"
+          echo "请检查："
+          echo "1. MongoDB 服务是否启动: sudo systemctl status mongod"
+          echo "2. MongoDB 绑定地址: grep bindIp /etc/mongod.conf"
+          echo "3. 防火墙设置: sudo ufw status | grep 27017"
+          echo "4. 端口监听: netstat -tlnp | grep 27017"
+        fi
+        
+        # 检查 Redis
+        if timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/6379" 2>/dev/null; then
+          echo "✅ Redis (172.16.32.2:6379) 可连接"
+        else
+          echo "❌ Redis (172.16.32.2:6379) 连接失败"
+        fi
+        
+        # 检查 MySQL
+        if timeout 10 bash -c "echo > /dev/tcp/172.16.16.3/3306" 2>/dev/null; then
+          echo "✅ MySQL 系统库 (172.16.16.3:3306) 可连接"
+        else
+          echo "❌ MySQL 系统库连接失败"
+        fi
+        
+        if timeout 10 bash -c "echo > /dev/tcp/172.16.16.2/3306" 2>/dev/null; then
+          echo "✅ MySQL 用户库 (172.16.16.2:3306) 可连接"
+        else
+          echo "❌ MySQL 用户库连接失败"
+        fi
         
         # 提升 MongoDB vm.max_map_count 参数（虽然用云数据库，但保留以防万一）
         echo "⚙️  提升 MongoDB vm.max_map_count 参数..."
