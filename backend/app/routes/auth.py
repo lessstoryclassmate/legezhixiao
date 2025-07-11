@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 import jwt
 import bcrypt
+from bson import ObjectId
 from app.database import users_collection
 from app.core.config import settings
 
@@ -113,8 +114,24 @@ async def login(user: UserLogin):
 
 # 获取当前用户信息
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(user_id: str = Depends(verify_token)):
-    user_doc = await users_collection.find_one({"_id": user_id})
+async def get_current_user_info(user_id: str = Depends(verify_token)):
+    """获取当前用户信息的接口"""
+    user_doc = await users_collection.find_one({"_id": ObjectId(user_id)})
+    
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    
+    return UserResponse(
+        id=str(user_doc["_id"]),
+        username=user_doc["username"],
+        email=user_doc["email"],
+        created_at=user_doc["created_at"]
+    )
+
+# 用于依赖注入的函数
+async def get_current_user(user_id: str = Depends(verify_token)) -> UserResponse:
+    """获取当前用户信息（用于依赖注入）"""
+    user_doc = await users_collection.find_one({"_id": ObjectId(user_id)})
     
     if not user_doc:
         raise HTTPException(status_code=404, detail="用户不存在")

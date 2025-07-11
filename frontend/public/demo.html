@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI小说内容编辑器 - VSCode风格界面演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #cccccc;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 顶部工具栏 */
+        .toolbar {
+            height: 35px;
+            background: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            gap: 10px;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 5px;
+        }
+
+        .toolbar-center {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-icon {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: #cccccc;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .btn-icon:hover {
+            background: #3e3e42;
+        }
+
+        .file-tabs {
+            display: flex;
+            margin-left: 10px;
+            gap: 2px;
+        }
+
+        .file-tab {
+            display: flex;
+            align-items: center;
+            padding: 5px 12px;
+            background: #2d2d30;
+            border-right: 1px solid #3e3e42;
+            cursor: pointer;
+            min-width: 120px;
+            font-size: 12px;
+            gap: 5px;
+        }
+
+        .file-tab.active {
+            background: #1e1e1e;
+        }
+
+        .file-tab:hover {
+            background: #3e3e42;
+        }
+
+        .tab-close {
+            width: 16px;
+            height: 16px;
+            border: none;
+            background: transparent;
+            color: #cccccc;
+            cursor: pointer;
+        }
+
+        .module-selector {
+            background: #3c3c3c;
+            color: #cccccc;
+            border: 1px solid #464647;
+            border-radius: 3px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        /* 主内容区域 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* 左侧文件资源管理器 */
+        .file-explorer {
+            width: 300px;
+            background: #252526;
+            border-right: 1px solid #3e3e42;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .explorer-header {
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            border-bottom: 1px solid #3e3e42;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #cccccc;
+        }
+
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .file-category {
+            margin-bottom: 10px;
+        }
+
+        .category-header {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            color: #cccccc;
+            text-transform: uppercase;
+        }
+
+        .category-header:hover {
+            background: #2a2d2e;
+        }
+
+        .category-files {
+            padding-left: 16px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 3px;
+            margin-bottom: 1px;
+        }
+
+        .file-item:hover {
+            background: #2a2d2e;
+        }
+
+        .file-item.active {
+            background: #094771;
+            color: #ffffff;
+        }
+
+        .file-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+        }
+
+        /* 分隔栏 */
+        .resizer {
+            width: 4px;
+            background: #3e3e42;
+            cursor: col-resize;
+        }
+
+        .resizer:hover {
+            background: #007acc;
+        }
+
+        /* 编辑器区域 */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid #3e3e42;
+        }
+
+        .editor-header {
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            background: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            font-size: 13px;
+        }
+
+        .editor-title {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .editor-content {
+            flex: 1;
+            display: flex;
+        }
+
+        .markdown-editor {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            background: #1e1e1e;
+            color: #cccccc;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 20px;
+            resize: none;
+        }
+
+        /* 水平分隔栏 */
+        .horizontal-resizer {
+            height: 4px;
+            background: #3e3e42;
+            cursor: row-resize;
+        }
+
+        .horizontal-resizer:hover {
+            background: #007acc;
+        }
+
+        /* AI 聊天面板 */
+        .ai-chat-panel {
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+            background: #252526;
+        }
+
+        .chat-header {
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            background: #2d2d30;
+            border-bottom: 1px solid #3e3e42;
+            font-size: 13px;
+        }
+
+        .chat-title {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #3e3e42;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .message-content {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.user .message-content {
+            background: #0e639c;
+        }
+
+        .message.ai .message-content {
+            background: #2d2d30;
+        }
+
+        .chat-input {
+            border-top: 1px solid #3e3e42;
+            background: #2d2d30;
+        }
+
+        .input-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #3e3e42;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .chat-textarea {
+            flex: 1;
+            min-height: 36px;
+            border: 1px solid #464647;
+            border-radius: 4px;
+            background: #3c3c3c;
+            color: #cccccc;
+            padding: 8px 12px;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+        }
+
+        .send-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 4px;
+            background: #007acc;
+            color: #ffffff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .send-btn:hover {
+            background: #1177bb;
+        }
+
+        /* 状态栏 */
+        .status-bar {
+            height: 22px;
+            background: #007acc;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            font-size: 12px;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .file-explorer {
+                width: 250px;
+            }
+            
+            .file-tab {
+                min-width: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button class="btn-icon" title="文件资源管理器">📁</button>
+                <button class="btn-icon" title="新建文件">📄</button>
+                <button class="btn-icon" title="保存">💾</button>
+            </div>
+            <div class="toolbar-center">
+                <div class="file-tabs">
+                    <div class="file-tab active">
+                        <span>📖</span>
+                        <span>我的第一本小说.md</span>
+                        <button class="tab-close">×</button>
+                    </div>
+                    <div class="file-tab">
+                        <span>👤</span>
+                        <span>主角设定.md</span>
+                        <button class="tab-close">×</button>
+                    </div>
+                    <div class="file-tab">
+                        <span>🗺️</span>
+                        <span>世界观设定.md</span>
+                        <button class="tab-close">×</button>
+                    </div>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <select class="module-selector">
+                    <option value="">选择模块</option>
+                    <option value="plot">情节生成器</option>
+                    <option value="character">人物生成器</option>
+                    <option value="world">世界构建</option>
+                    <option value="analysis">情节分析</option>
+                    <option value="optimization">文本优化</option>
+                    <option value="style">风格转换</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 左侧文件资源管理器 -->
+            <div class="file-explorer">
+                <div class="explorer-header">
+                    <span>资源管理器</span>
+                    <button class="btn-icon" title="刷新">🔄</button>
+                </div>
+                <div class="file-tree">
+                    <div class="file-category">
+                        <div class="category-header">
+                            <span>📖 小说主文件 (1)</span>
+                        </div>
+                        <div class="category-files">
+                            <div class="file-item active">
+                                <span class="file-icon">📖</span>
+                                <span>我的第一本小说.md</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-category">
+                        <div class="category-header">
+                            <span>📄 章节内容 (3)</span>
+                        </div>
+                        <div class="category-files">
+                            <div class="file-item">
+                                <span class="file-icon">📄</span>
+                                <span>第001章-开端.md</span>
+                            </div>
+                            <div class="file-item">
+                                <span class="file-icon">📄</span>
+                                <span>第002章-相遇.md</span>
+                            </div>
+                            <div class="file-item">
+                                <span class="file-icon">📄</span>
+                                <span>第003章-冒险.md</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-category">
+                        <div class="category-header">
+                            <span>👤 人物设定 (2)</span>
+                        </div>
+                        <div class="category-files">
+                            <div class="file-item">
+                                <span class="file-icon">👤</span>
+                                <span>主角设定.md</span>
+                            </div>
+                            <div class="file-item">
+                                <span class="file-icon">👤</span>
+                                <span>反派设定.md</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-category">
+                        <div class="category-header">
+                            <span>🌍 世界构建 (1)</span>
+                        </div>
+                        <div class="category-files">
+                            <div class="file-item">
+                                <span class="file-icon">🌍</span>
+                                <span>世界观设定.md</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-category">
+                        <div class="category-header">
+                            <span>🗺️ 情节设定 (1)</span>
+                        </div>
+                        <div class="category-files">
+                            <div class="file-item">
+                                <span class="file-icon">🗺️</span>
+                                <span>主线情节.md</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-category">
+                        <div class="category-header">
+                            <span>📊 分析报告 (2)</span>
+                        </div>
+                        <div class="category-files">
+                            <div class="file-item">
+                                <span class="file-icon">📊</span>
+                                <span>情节分析-20231211.md</span>
+                            </div>
+                            <div class="file-item">
+                                <span class="file-icon">📊</span>
+                                <span>人物分析-20231211.md</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分隔栏 -->
+            <div class="resizer"></div>
+
+            <!-- 编辑器区域 -->
+            <div class="editor-container">
+                <!-- 编辑器面板 -->
+                <div class="editor-panel">
+                    <div class="editor-header">
+                        <div class="editor-title">
+                            <span>📖</span>
+                            <span>我的第一本小说.md</span>
+                        </div>
+                        <div class="editor-actions">
+                            <button class="btn-icon" title="格式化">📐</button>
+                            <button class="btn-icon" title="预览">👁️</button>
+                        </div>
+                    </div>
+                    <div class="editor-content">
+                        <textarea class="markdown-editor" placeholder="在这里编写您的小说内容...# 我的第一本小说
+
+## 基本信息
+- 作者: 
+- 类型: 玄幻小说
+- 状态: 创作中
+- 创建时间: 2023-12-11
+- 预计字数: 100万字
+
+## 简介
+这是一个关于普通少年踏上修仙之路的故事。主人公林风在一次意外中获得了神秘的修炼功法，从此开始了他的修仙之旅。
+
+## 大纲
+### 第一卷: 初入修仙界
+- 第1章: 平凡的开始
+- 第2章: 神秘的传承
+- 第3章: 修炼的开始
+
+### 第二卷: 历练成长
+- 第4章: 第一次历练
+- 第5章: 遇见同门
+- 第6章: 强敌来袭
+
+## 主要人物
+- 林风: 主角，天赋异禀的少年
+- 云师父: 神秘的导师，实力深不可测
+- 苏婉儿: 青梅竹马，同样踏上修仙之路
+
+## 世界设定
+这是一个修仙者遍地的世界，强者为尊，弱肉强食。修炼分为练气、筑基、金丹、元婴、化神等境界。
+
+## 标签
+玄幻, 修仙, 升级, 热血, 友情"></textarea>
+                    </div>
+                </div>
+
+                <!-- 水平分隔栏 -->
+                <div class="horizontal-resizer"></div>
+
+                <!-- AI 聊天面板 -->
+                <div class="ai-chat-panel">
+                    <div class="chat-header">
+                        <div class="chat-title">
+                            <span>🤖</span>
+                            <span>AI 助手</span>
+                        </div>
+                        <div class="chat-actions">
+                            <button class="btn-icon" title="清空对话">🗑️</button>
+                            <button class="btn-icon" title="导出对话">📥</button>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-messages">
+                        <div class="message ai">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">
+                                你好！我是AI写作助手，我可以帮助你：<br>
+                                📝 生成情节内容<br>
+                                👤 创建人物设定<br>
+                                🌍 构建世界观<br>
+                                📊 分析文本内容<br>
+                                🎨 优化写作风格<br>
+                                <br>
+                                请告诉我你需要什么帮助！
+                            </div>
+                        </div>
+                        
+                        <div class="message user">
+                            <div class="message-avatar">👤</div>
+                            <div class="message-content">
+                                请帮我为主角林风设计一个更详细的背景故事
+                            </div>
+                        </div>
+                        
+                        <div class="message ai">
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">
+                                为林风设计的背景故事：<br><br>
+                                <strong>林风</strong><br>
+                                - 年龄：16岁<br>
+                                - 出生地：青云镇<br>
+                                - 家庭：父母早逝，由爷爷抚养长大<br>
+                                - 性格：坚韧不拔，重情重义<br>
+                                - 天赋：拥有罕见的混沌灵根<br>
+                                - 际遇：意外获得远古修仙传承<br><br>
+                                是否需要我将这个设定保存为人物设定文件？
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input">
+                        <div class="input-toolbar">
+                            <button class="btn-icon" title="插入模板">📋</button>
+                            <button class="btn-icon" title="插入上下文">🔗</button>
+                            <select class="module-selector">
+                                <option value="deepseek">DeepSeek-V3</option>
+                                <option value="qwen">Qwen2.5-72B</option>
+                                <option value="yi">Yi-1.5-34B</option>
+                            </select>
+                        </div>
+                        <div class="input-container">
+                            <textarea class="chat-textarea" placeholder="向 AI 提问或请求帮助..."></textarea>
+                            <button class="send-btn">📤</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span>📊 字数: 1,234</span>
+                <span>📝 行数: 56</span>
+                <span>💾 已保存</span>
+            </div>
+            <div class="status-right">
+                <span>🤖 AI: 连接中</span>
+                <span>⚡ 模式: 创作模式</span>
+                <span>🌐 UTF-8</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 简单的交互效果
+        document.addEventListener('DOMContentLoaded', function() {
+            // 文件标签切换
+            const fileTabs = document.querySelectorAll('.file-tab');
+            fileTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    fileTabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // 文件项切换
+            const fileItems = document.querySelectorAll('.file-item');
+            fileItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    fileItems.forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+
+            // 分类展开/收起
+            const categoryHeaders = document.querySelectorAll('.category-header');
+            categoryHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const files = this.nextElementSibling;
+                    files.style.display = files.style.display === 'none' ? 'block' : 'none';
+                });
+            });
+
+            // 模拟发送消息
+            const sendBtn = document.querySelector('.send-btn');
+            const chatInput = document.querySelector('.chat-textarea');
+            const chatMessages = document.querySelector('.chat-messages');
+            
+            sendBtn.addEventListener('click', function() {
+                const message = chatInput.value.trim();
+                if (message) {
+                    // 添加用户消息
+                    const userMessage = document.createElement('div');
+                    userMessage.className = 'message user';
+                    userMessage.innerHTML = `
+                        <div class="message-avatar">👤</div>
+                        <div class="message-content">${message}</div>
+                    `;
+                    chatMessages.appendChild(userMessage);
+                    
+                    // 清空输入框
+                    chatInput.value = '';
+                    
+                    // 模拟AI回复
+                    setTimeout(() => {
+                        const aiMessage = document.createElement('div');
+                        aiMessage.className = 'message ai';
+                        aiMessage.innerHTML = `
+                            <div class="message-avatar">🤖</div>
+                            <div class="message-content">我正在思考您的问题，请稍候...</div>
+                        `;
+                        chatMessages.appendChild(aiMessage);
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }, 1000);
+                }
+            });
+
+            // 回车发送
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    sendBtn.click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

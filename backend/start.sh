@@ -30,7 +30,7 @@ async def test_mongo():
         return False
     finally:
         if client:
-            await client.close()
+            client.close()
 
 success = asyncio.run(test_mongo())
 sys.exit(0 if success else 1)

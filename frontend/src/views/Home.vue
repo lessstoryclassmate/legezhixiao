@@ -4,6 +4,9 @@
       <h1>AI小说内容编辑器</h1>
       <p>基于SiliconFlow API的智能小说创作平台</p>
       <div class="actions">
+        <button class="btn primary" @click="goToEditor">
+          VSCode编辑器
+        </button>
         <button class="btn primary" @click="goToNovels">
           开始创作
         </button>
@@ -41,6 +44,10 @@
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const goToEditor = () => {
+  router.push('/editor')
+}
 
 const goToNovels = () => {
   router.push('/novels')

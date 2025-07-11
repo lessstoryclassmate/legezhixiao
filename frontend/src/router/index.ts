@@ -13,6 +13,11 @@ const routes = [
     component: () => import('../views/Novels.vue')
   },
   {
+    path: '/ai-generator',
+    name: 'AIGenerator',
+    component: () => import('../views/AIContentGenerator.vue')
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/Auth.vue')
@@ -21,6 +26,11 @@ const routes = [
     path: '/register',
     name: 'Register',
     component: () => import('../views/Auth.vue')
+  },
+  {
+    path: '/editor',
+    name: 'VSCodeEditor',
+    component: () => import('../views/VSCodeMDEditor.vue')
   },
   {
     path: '/novel/:id/edit',

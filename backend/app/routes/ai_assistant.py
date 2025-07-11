@@ -27,7 +27,7 @@ class SiliconFlowService:
     def __init__(self):
         self.api_key = settings.SILICONFLOW_API_KEY
         self.api_url = settings.SILICONFLOW_API_URL
-        self.model = settings.SILICONFLOW_MODEL
+        self.model = settings.SILICONFLOW_DEFAULT_MODEL
         
     async def chat_completion(self, messages: List[Dict[str, str]], max_tokens: int = 2000) -> str:
         """调用SiliconFlow API进行对话"""

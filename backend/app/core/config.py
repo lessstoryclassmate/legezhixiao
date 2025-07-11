@@ -1,6 +1,7 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Union
 import os
+from pydantic import field_validator, ValidationInfo
 
 class Settings(BaseSettings):
     # 应用配置
@@ -16,22 +17,7 @@ class Settings(BaseSettings):
     
     # 数据库配置
     MONGODB_URL: str = "mongodb://localhost:27017/ai_novel_db"
-    DATABASE_SYSTEM_URL: str = "mysql+aiomysql://lkr:Lekairong350702@172.16.16.3:3306/novel_data"
-    DATABASE_NOVEL_URL: str = "mysql+aiomysql://novel_data_user:Lekairong350702@172.16.16.2:3306/novel_user_data"
     REDIS_URL: str = "redis://localhost:6379"
-    
-    # 系统数据库配置
-    DATABASE_PORT: int = 3306
-    DATABASE_SYSTEMHOST: str = "172.16.16.3"
-    DATABASE_SYSTEM: str = "novel_data"
-    DATABASE_USER: str = "lkr"
-    DATABASE_PASSWORD: str = "Lekairong350702"
-    
-    # 用户数据库配置  
-    DATABASE_NOVELHOST: str = "172.16.16.2"
-    DATABASE_NOVELDATA: str = "novel_user_data"
-    DATABASE_NOVELUSER: str = "novel_data_user"
-    DATABASE_NOVELUSER_PASSWORD: str = "Lekairong350702"
     
     # SiliconFlow API配置
     SILICONFLOW_API_KEY: str = "sk-mjithqmjwccqgffouexthbavtnvftwkqjludpcxhrmeztcib"
@@ -56,7 +42,7 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7天
     
     # CORS配置
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Union[str, List[str]] = [
         "http://localhost:80",
         "http://127.0.0.1:80",
         "http://localhost:8080",
@@ -66,6 +52,19 @@ class Settings(BaseSettings):
         "http://106.13.216.179:80",
         "http://106.13.216.179:8080"
     ]
+    
+    def get_cors_origins(self) -> List[str]:
+        if isinstance(self.CORS_ORIGINS, str):
+            return [url.strip() for url in self.CORS_ORIGINS.split(',') if url.strip()]
+        elif isinstance(self.CORS_ORIGINS, list):
+            return self.CORS_ORIGINS
+        else:
+            return [
+                "http://localhost:80",
+                "http://127.0.0.1:80",
+                "http://localhost:8080",
+                "http://127.0.0.1:8080"
+            ]
     
     # 文件上传配置
     UPLOAD_DIR: str = "uploads"

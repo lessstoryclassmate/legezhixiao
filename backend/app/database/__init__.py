@@ -18,3 +18,4 @@ worldviews_collection = mongodb.worldviews
 plots_collection = mongodb.plots
 foreshadows_collection = mongodb.foreshadows
 ai_conversations_collection = mongodb.ai_conversations
+md_files_collection = mongodb.md_files

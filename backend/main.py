@@ -11,7 +11,8 @@ load_dotenv()
 
 # 导入路由模块
 from app.routes import auth, novels, chapters, characters, ai_assistant
-from app.database import mongodb, redis_client
+from app.api import md_files
+from app.database import mongodb, redis_client, mongodb_client
 from app.core.config import settings
 
 # 创建应用实例
@@ -37,7 +38,7 @@ app = FastAPI(
 # 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,6 +50,7 @@ app.include_router(novels.router, prefix="/novels", tags=["小说管理"])
 app.include_router(chapters.router, prefix="/chapters", tags=["章节管理"])
 app.include_router(characters.router, prefix="/characters", tags=["人物管理"])
 app.include_router(ai_assistant.router, prefix="/ai", tags=["AI助手"])
+app.include_router(md_files.router, prefix="/api", tags=["MD文件管理"])
 
 # 根路径
 @app.get("/")
@@ -74,7 +76,7 @@ async def health_check():
     
     # 检查MongoDB连接
     try:
-        await mongodb.admin.command('ping')
+        await mongodb_client.get_database('admin').command('ping')
         health_status["services"]["mongodb"] = "healthy"
     except Exception as e:
         health_status["services"]["mongodb"] = f"unhealthy: {str(e)}"

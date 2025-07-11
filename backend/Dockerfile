@@ -34,8 +34,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # 复制启动脚本
 COPY start.sh /app/start.sh
-COPY start-fixed.sh /app/start-fixed.sh
-RUN chmod +x /app/start.sh /app/start-fixed.sh
+RUN chmod +x /app/start.sh
 
 # 启动应用
 CMD ["/app/start.sh"]

@@ -1,3 +1,148 @@
+/* VSCode 主题变量 */
+:root {
+  /* 编辑器 */
+  --vscode-editor-background: #1e1e1e;
+  --vscode-editor-foreground: #d4d4d4;
+  --vscode-editor-font-family: 'Consolas', 'Courier New', monospace;
+  --vscode-editor-font-size: 14px;
+  
+  /* 侧边栏 */
+  --vscode-sideBar-background: #252526;
+  --vscode-sideBar-foreground: #cccccc;
+  --vscode-sideBar-border: #2d2d30;
+  
+  /* 侧边栏标题 */
+  --vscode-sideBarSectionHeader-background: #2d2d30;
+  --vscode-sideBarSectionHeader-foreground: #cccccc;
+  
+  /* 标题栏 */
+  --vscode-titleBar-activeBackground: #3c3c3c;
+  --vscode-titleBar-activeForeground: #cccccc;
+  --vscode-titleBar-border: #2d2d30;
+  --vscode-titleBar-hoverBackground: #505050;
+  
+  /* 标签页 */
+  --vscode-tab-activeBackground: #1e1e1e;
+  --vscode-tab-activeForeground: #ffffff;
+  --vscode-tab-activeBorder: #007acc;
+  --vscode-tab-inactiveBackground: #2d2d30;
+  --vscode-tab-inactiveForeground: #969696;
+  --vscode-tab-hoverBackground: #1e1e1e;
+  --vscode-tab-border: #2d2d30;
+  
+  /* 编辑器组 */
+  --vscode-editorGroupHeader-tabsBackground: #252526;
+  --vscode-editorGroup-border: #2d2d30;
+  
+  /* 输入框 */
+  --vscode-input-background: #3c3c3c;
+  --vscode-input-foreground: #cccccc;
+  --vscode-input-border: #3c3c3c;
+  
+  /* 按钮 */
+  --vscode-button-background: #0e639c;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #1177bb;
+  --vscode-button-secondaryBackground: #3c3c3c;
+  --vscode-button-secondaryForeground: #cccccc;
+  --vscode-button-secondaryHoverBackground: #505050;
+  --vscode-button-border: #3c3c3c;
+  
+  /* 列表 */
+  --vscode-list-activeSelectionBackground: #094771;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-inactiveSelectionBackground: #37373d;
+  --vscode-list-inactiveSelectionForeground: #cccccc;
+  --vscode-list-hoverBackground: #2a2d2e;
+  
+  /* 状态栏 */
+  --vscode-statusBar-background: #007acc;
+  --vscode-statusBar-foreground: #ffffff;
+  --vscode-statusBar-border: #007acc;
+  --vscode-statusBar-prominentForeground: #ffffff;
+  
+  /* 文本 */
+  --vscode-foreground: #cccccc;
+  --vscode-descriptionForeground: #969696;
+  --vscode-textLink-foreground: #3794ff;
+  
+  /* 代码块 */
+  --vscode-textCodeBlock-background: #0f0f0f;
+  --vscode-textBlockQuote-background: #2d2d30;
+  --vscode-textBlockQuote-border: #007acc;
+  --vscode-textBlockQuote-foreground: #cccccc;
+  
+  /* 边框 */
+  --vscode-contrastBorder: #6fc3df;
+  --vscode-focusBorder: #007acc;
+  
+  /* 工具栏 */
+  --vscode-toolbar-hoverBackground: #37373d;
+  
+  /* Git装饰 */
+  --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
+  --vscode-gitDecoration-addedResourceForeground: #73c991;
+  --vscode-gitDecoration-deletedResourceForeground: #f48771;
+  
+  /* 徽章 */
+  --vscode-badge-background: #4d4d4d;
+  --vscode-badge-foreground: #ffffff;
+  
+  /* 验证 */
+  --vscode-inputValidation-infoBackground: #063b49;
+  --vscode-inputValidation-infoForeground: #bfe6ff;
+  
+  /* 字体 */
+  --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+}
+
+/* 亮色主题变量 */
+[data-theme="light"] {
+  --vscode-editor-background: #ffffff;
+  --vscode-editor-foreground: #333333;
+  
+  --vscode-sideBar-background: #f3f3f3;
+  --vscode-sideBar-foreground: #333333;
+  --vscode-sideBar-border: #e5e5e5;
+  
+  --vscode-sideBarSectionHeader-background: #e8e8e8;
+  --vscode-sideBarSectionHeader-foreground: #333333;
+  
+  --vscode-titleBar-activeBackground: #dddddd;
+  --vscode-titleBar-activeForeground: #333333;
+  --vscode-titleBar-border: #e5e5e5;
+  --vscode-titleBar-hoverBackground: #e8e8e8;
+  
+  --vscode-tab-activeBackground: #ffffff;
+  --vscode-tab-activeForeground: #333333;
+  --vscode-tab-inactiveBackground: #ececec;
+  --vscode-tab-inactiveForeground: #6f6f6f;
+  --vscode-tab-hoverBackground: #f8f8f8;
+  --vscode-tab-border: #e5e5e5;
+  
+  --vscode-input-background: #ffffff;
+  --vscode-input-foreground: #333333;
+  --vscode-input-border: #cecece;
+  
+  --vscode-button-background: #007acc;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-secondaryBackground: #e5e5e5;
+  --vscode-button-secondaryForeground: #333333;
+  
+  --vscode-list-activeSelectionBackground: #0074e8;
+  --vscode-list-activeSelectionForeground: #ffffff;
+  --vscode-list-inactiveSelectionBackground: #e4e6f1;
+  --vscode-list-hoverBackground: #f0f0f0;
+  
+  --vscode-statusBar-background: #007acc;
+  --vscode-foreground: #333333;
+  --vscode-descriptionForeground: #6f6f6f;
+  
+  --vscode-textCodeBlock-background: #f8f8f8;
+  --vscode-textBlockQuote-background: #f8f8f8;
+  --vscode-textBlockQuote-foreground: #333333;
+}
+
 /* 全局样式 */
 * {
   margin: 0;
@@ -6,12 +151,11 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--vscode-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
 }
 
 #app {
