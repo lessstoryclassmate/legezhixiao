@@ -28,11 +28,6 @@ const routes = [
     component: () => import('../views/Auth.vue')
   },
   {
-    path: '/editor',
-    name: 'VSCodeEditor',
-    component: () => import('../views/VSCodeMDEditor.vue')
-  },
-  {
     path: '/novel/:id/edit',
     name: 'NovelEdit',
     component: () => import('../views/NovelEditor.vue')

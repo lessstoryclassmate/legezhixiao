@@ -12,7 +12,7 @@ load_dotenv()
 # 导入路由模块
 from app.routes import auth, novels, chapters, characters, ai_assistant
 from app.api import md_files
-from app.database import mongodb, redis_client, mongodb_client
+from app.database import mongodb, redis_client
 from app.core.config import settings
 
 # 创建应用实例
@@ -76,7 +76,7 @@ async def health_check():
     
     # 检查MongoDB连接
     try:
-        await mongodb_client.get_database('admin').command('ping')
+        await mongodb.admin.command('ping')
         health_status["services"]["mongodb"] = "healthy"
     except Exception as e:
         health_status["services"]["mongodb"] = f"unhealthy: {str(e)}"

@@ -44,55 +44,10 @@ jobs:
         cd frontend
         npm ci
         
-    - name: Check Vite config
+    - name: Run frontend linting
       run: |
         cd frontend
-        echo "检查 vite.config.ts 文件..."
-        cat vite.config.ts
-        
-    - name: Add path alias to Vite config
-      run: |
-        cd frontend
-        cat > vite.config.ts << 'EOF'
-        import { defineConfig } from 'vite'
-        import vue from '@vitejs/plugin-vue'
-        import path from 'path'
-
-        export default defineConfig({
-          plugins: [vue()],
-          resolve: {
-            alias: {
-              '@': path.resolve(__dirname, './src')
-            }
-          },
-          server: {
-            port: 3000,
-            host: '0.0.0.0',
-            proxy: {
-              '/api': {
-                target: 'http://localhost:8000',
-                changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api/, ''),
-              },
-            },
-          },
-          build: {
-            outDir: 'dist',
-            sourcemap: false,
-          },
-        })
-        EOF
-        
-    - name: Install missing dependencies
-      run: |
-        cd frontend
-        npm install marked --save
-        
-    - name: Run frontend linting (skip if fails)
-      continue-on-error: true
-      run: |
-        cd frontend
-        npm run lint || echo "Linting有警告，但继续构建"
+        npm run lint
 
   # 构建测试
   build:
@@ -108,91 +63,34 @@ jobs:
     - name: Create test environment file
       run: |
         cat > .env << EOF
-        # 应用配置
-        APP_NAME=AI小说内容编辑器
-        APP_VERSION=1.0.0
-        DEBUG=false
-        
-        # 服务器配置
-        SERVER_IP=localhost
-        SERVER_USER=root
-        SERVER_SSH_PORT=22
-        SERVER_PORT=22
-        
-        # 数据库配置 - 使用统一的MongoDB
-        MONGODB_URL=mongodb://localhost:27017/ai_novel_db
-        REDIS_URL=redis://localhost:6379
-        
-        # SiliconFlow API配置
+        MONGO_INITDB_ROOT_USERNAME=admin
+        MONGO_PASSWORD=Lekairong350702
+        REDIS_PASSWORD=Lekairong350702
         SILICONFLOW_API_KEY=sk-test-key
-        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
-        SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
-        
-        # MCP接口配置
+        JWT_SECRET_KEY=test-jwt-secret-key
+        DATABASE_SYSTEMHOST=172.16.16.3
+        DATABASE_SYSTEM=novel_data
+        DATABASE_USER=lkr
+        DATABASE_PASSWORD=Lekairong350702
+        DATABASE_NOVELHOST=172.16.16.2
+        DATABASE_NOVELDATA=novel_user_data
+        DATABASE_NOVELUSER=novel_data_user
+        DATABASE_NOVELUSER_PASSWORD=Lekairong350702
+        SERVER_IP=localhost
         MCP_SERVER_NAME=novel-ai-server
         MCP_SERVER_PORT=8000
         MCP_SERVER_HOST=localhost
         MCP_TOOLS_ENABLED=true
         MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
-        
-        # 小说生成配置
         NOVEL_GENERATION_MAX_TOKENS=4096
         NOVEL_GENERATION_TEMPERATURE=0.8
         NOVEL_GENERATION_TOP_P=0.9
-        
-        # JWT配置
-        JWT_SECRET_KEY=test-jwt-secret-key-for-testing
-        JWT_ALGORITHM=HS256
-        JWT_EXPIRE_MINUTES=10080
-        
-        # Docker环境变量
-        MONGO_INITDB_ROOT_USERNAME=admin
-        MONGO_INITDB_ROOT_PASSWORD=Lekairong350702
-        MONGO_INITDB_DATABASE=ai_novel_db
-        REDIS_PASSWORD=Lekairong350702
+        SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
         EOF
       
     - name: Build Docker images
-      run: |
-        echo "🔧 修复前端Vite配置..."
-        cd frontend
-        
-        # 确保有正确的vite.config.ts
-        cat > vite.config.ts << 'EOF'
-        import { defineConfig } from 'vite'
-        import vue from '@vitejs/plugin-vue'
-        import path from 'path'
-
-        export default defineConfig({
-          plugins: [vue()],
-          resolve: {
-            alias: {
-              '@': path.resolve(__dirname, './src')
-            }
-          },
-          server: {
-            port: 3000,
-            host: '0.0.0.0',
-            proxy: {
-              '/api': {
-                target: 'http://localhost:8000',
-                changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api/, ''),
-              },
-            },
-          },
-          build: {
-            outDir: 'dist',
-            sourcemap: false,
-          },
-        })
-        EOF
-        
-        # 安装缺失的依赖
-        npm install marked --save
-        
-        cd ..
-        docker-compose build --no-cache
+      run: docker-compose build --no-cache
         
     - name: Test Docker containers
       run: |
@@ -266,18 +164,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Verify project structure
-      run: |
-        echo "🔍 验证项目结构..."
-        echo "前端文件："
-        ls -la frontend/
-        echo "后端文件："
-        ls -la backend/
-        echo "Docker文件："
-        ls -la docker-compose.yml
-        echo "环境变量模板："
-        ls -la .env.example || echo "没有找到 .env.example"
-      
     - name: Setup SSH
       uses: webfactory/ssh-agent@v0.8.0
       with:
@@ -293,25 +179,14 @@ jobs:
         JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
         REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN_CUSTOM }}
       run: |
         # 创建部署脚本
         cat > deploy_script.sh << 'SCRIPT_EOF'
         #!/bin/bash
         set -e
         
-        echo "🚀 开始部署AI小说编辑器 (Token认证版本)..."
-        
-        # 检查必要的环境变量
-        required_vars=("GITHUB_TOKEN" "GITHUB_REPOSITORY" "SERVER_IP" "MONGO_PASSWORD" "REDIS_PASSWORD" "JWT_SECRET_KEY" "SILICONFLOW_API_KEY")
-        for var in "${required_vars[@]}"; do
-            if [ -z "${!var}" ]; then
-                echo "❌ 错误: 环境变量 $var 未设置"
-                exit 1
-            fi
-        done
-        
-        echo "✅ 所有必要环境变量已设置"
+        echo "🚀 开始部署AI小说编辑器..."
         
         # 设置部署目录
         PROJECT_DIR="/opt/ai-novel-editor"
@@ -326,22 +201,16 @@ jobs:
         # 备份现有部署
         if [ -d "$PROJECT_DIR/.git" ]; then
           echo "📦 备份现有部署..."
-          cp -r "$PROJECT_DIR" "$BACKUP_DIR" 2>/dev/null || echo "⚠️  备份失败，但继续部署..."
-        elif [ -d "$PROJECT_DIR" ] && [ "$(ls -A "$PROJECT_DIR" 2>/dev/null)" ]; then
-          echo "📦 发现非Git目录，创建备份..."
-          cp -r "$PROJECT_DIR" "$BACKUP_DIR" 2>/dev/null || echo "⚠️  备份失败，但继续部署..."
+          cp -r "$PROJECT_DIR" "$BACKUP_DIR"
+          echo "✅ 备份完成: $BACKUP_DIR"
         fi
         
         # 进入项目目录
         cd "$PROJECT_DIR"
         
-        # 克隆或更新代码（使用Token认证）
+        # 克隆或更新代码
         if [ -d ".git" ]; then
           echo "📦 更新现有Git仓库..."
-          
-          # 更新远程URL以包含token
-          git remote set-url origin "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          
           if git fetch origin && git reset --hard origin/main && git clean -fd; then
             echo "✅ 代码更新成功"
           else
@@ -350,24 +219,19 @@ jobs:
             rm -rf "$PROJECT_DIR"
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
-            
-            # 使用Token克隆
-            git clone "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .
+            git clone https://$GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY .
           fi
         else
           echo "📦 初始化Git仓库..."
-          
-          # 清理目录
+          # 确保目录为空
           if [ "$(ls -A . 2>/dev/null)" ]; then
             echo "⚠️  目录不为空，清理现有文件..."
             find . -maxdepth 1 -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null || true
           fi
-          
-          echo "🔄 克隆代码仓库 (使用Token认证)..."
-          
-          # 添加重试机制，使用Token认证
+          echo "🔄 克隆代码仓库..."
+          # 使用带Token的HTTPS地址进行克隆
           for i in {1..3}; do
-            if git clone "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" .; then
+            if git clone https://$GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY .; then
               echo "✅ 代码克隆成功"
               break
             else
@@ -375,69 +239,43 @@ jobs:
               sleep 5
               if [ $i -eq 3 ]; then
                 echo "❌ 代码克隆最终失败"
-                echo "📋 调试信息:"
-                echo "  GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
-                echo "  GITHUB_TOKEN length: ${#GITHUB_TOKEN}"
-                echo "  当前目录: $(pwd)"
                 exit 1
               fi
             fi
           done
         fi
         
-        # 验证代码克隆成功
-        if [ ! -f "docker-compose.yml" ]; then
-          echo "❌ 关键文件缺失，代码克隆可能失败"
-          ls -la
-          exit 1
-        fi
-        echo "✅ 代码验证通过"
-        
         # 创建环境变量文件
         echo "🔧 配置环境变量..."
         cat > .env << EOF
-        # 应用配置
-        APP_NAME=AI小说内容编辑器
-        APP_VERSION=1.0.0
-        DEBUG=false
-        
-        # 服务器配置
         SERVER_IP=$SERVER_IP
         SERVER_USER=root
         SERVER_SSH_PORT=22
         SERVER_PORT=22
-        
-        # 数据库配置 - 使用统一的MongoDB
-        MONGODB_URL=mongodb://localhost:27017/ai_novel_db
-        REDIS_URL=redis://localhost:6379
-        
-        # SiliconFlow API配置
         SILICONFLOW_API_KEY=$SILICONFLOW_API_KEY
-        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
         SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
-        
-        # MCP接口配置
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
         MCP_SERVER_NAME=novel-ai-server
         MCP_SERVER_PORT=8000
         MCP_SERVER_HOST=$SERVER_IP
         MCP_TOOLS_ENABLED=true
         MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
-        
-        # 小说生成配置
         NOVEL_GENERATION_MAX_TOKENS=4096
         NOVEL_GENERATION_TEMPERATURE=0.8
         NOVEL_GENERATION_TOP_P=0.9
-        
-        # JWT配置
         JWT_SECRET_KEY=$JWT_SECRET_KEY
-        JWT_ALGORITHM=HS256
-        JWT_EXPIRE_MINUTES=10080
-        
-        # Docker环境变量
         MONGO_INITDB_ROOT_USERNAME=admin
-        MONGO_INITDB_ROOT_PASSWORD=$MONGO_PASSWORD
-        MONGO_INITDB_DATABASE=ai_novel_db
+        MONGO_PASSWORD=$MONGO_PASSWORD
         REDIS_PASSWORD=$REDIS_PASSWORD
+        DATABASE_PORT=3306
+        DATABASE_SYSTEMHOST=172.16.16.3
+        DATABASE_SYSTEM=novel_data
+        DATABASE_USER=lkr
+        DATABASE_PASSWORD=Lekairong350702
+        DATABASE_NOVELHOST=172.16.16.2
+        DATABASE_NOVELDATA=novel_user_data
+        DATABASE_NOVELUSER=novel_data_user
+        DATABASE_NOVELUSER_PASSWORD=Lekairong350702
         EOF
         
         echo "🔍 验证MongoDB配置..."
@@ -464,75 +302,35 @@ jobs:
         docker system prune -f || true
         
         # 构建和启动服务
-        echo "🔧 构建Docker镜像..."
-        if docker-compose build --no-cache; then
-          echo "✅ Docker镜像构建成功"
-        else
-          echo "❌ Docker镜像构建失败"
-          exit 1
-        fi
+        echo "🔧 构建和启动服务..."
+        docker-compose build --no-cache
         
         # 分阶段启动服务，确保 MongoDB 先启动
         echo "🍃 启动 MongoDB..."
-        if docker-compose up -d mongodb; then
-          echo "✅ MongoDB容器启动命令执行成功"
-        else
-          echo "❌ MongoDB容器启动失败"
-          exit 1
-        fi
+        docker-compose up -d mongodb
         
         echo "⏳ 等待 MongoDB 启动..."
         sleep 60
         
         # 检查 MongoDB 健康状态
-        echo "🔍 检查 MongoDB 健康状态..."
-        for i in {1..15}; do
-            echo "MongoDB健康检查第 $i 次..."
+        for i in {1..10}; do
             if docker-compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" 2>/dev/null; then
                 echo "✅ MongoDB 启动成功"
-                
-                # 确保数据库和用户设置正确
-                echo "🔧 确保数据库配置正确..."
-                docker-compose exec -T mongodb mongosh ai_novel_db --quiet --eval "
-                  print('当前数据库: ' + db.getName());
-                  print('用户集合数量: ' + db.users.countDocuments());
-                " || echo "数据库初始化可能需要时间"
-                
                 break
             else
-                echo "⏳ 等待 MongoDB 启动... ($i/15)"
+                echo "⏳ 等待 MongoDB 启动... ($i/10)"
                 sleep 10
             fi
             
-            if [ $i -eq 15 ]; then
+            if [ $i -eq 10 ]; then
                 echo "❌ MongoDB 启动失败"
-                echo "容器状态："
-                docker-compose ps
-                echo "MongoDB 日志："
-                docker-compose logs --tail=30 mongodb
+                docker-compose logs --tail=20 mongodb
                 exit 1
             fi
         done
         
         echo "🚀 启动其他服务..."
-        if docker-compose up -d; then
-          echo "✅ 所有服务启动命令执行成功"
-        else
-          echo "❌ 服务启动失败"
-          echo "容器状态："
-          docker-compose ps
-          echo "查看日志："
-          docker-compose logs --tail=20
-          exit 1
-        fi
-        
-        # 等待所有服务就绪
-        echo "⏳ 等待所有服务就绪..."
-        sleep 30
-        
-        # 最终状态检查
-        echo "📊 最终容器状态："
-        docker-compose ps
+        docker-compose up -d
         
         echo "✅ 部署完成！"
         SCRIPT_EOF
@@ -559,106 +357,30 @@ jobs:
       run: |
         echo "🔍 执行健康检查..."
         
-        # 等待服务完全启动
-        echo "⏳ 等待所有服务启动..."
-        sleep 30
-        
-        # 检查容器状态
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
-          cd /opt/ai-novel-editor
-          echo '📊 容器状态：'
-          docker-compose ps
-          echo '📊 服务日志检查：'
-          docker-compose logs --tail=5 backend
-        "
-        
         # 检查前端服务
-        echo "🌐 检查前端服务..."
-        for i in {1..5}; do
-          if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:80 >/dev/null 2>&1; then
-            echo "✅ 前端服务正常"
-            break
-          else
-            echo "⏳ 前端服务检查失败，重试 $i/5..."
-            sleep 10
-          fi
-          
-          if [ $i -eq 5 ]; then
-            echo "❌ 前端服务异常"
-            exit 1
-          fi
-        done
+        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:80; then
+          echo "✅ 前端服务正常"
+        else
+          echo "❌ 前端服务异常"
+          exit 1
+        fi
         
         # 检查后端API
-        echo "🔧 检查后端API..."
-        for i in {1..5}; do
-          if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:8000/health >/dev/null 2>&1; then
-            echo "✅ 后端API正常"
-            # 获取详细健康信息
-            curl -s http://${{ secrets.SERVER_IP }}:8000/health | head -10
-            break
-          else
-            echo "⏳ 后端API检查失败，重试 $i/5..."
-            sleep 10
-          fi
-          
-          if [ $i -eq 5 ]; then
-            echo "❌ 后端API异常"
-            exit 1
-          fi
-        done
-        
-        # 测试API认证功能
-        echo "🔐 测试API认证功能..."
-        API_RESPONSE=$(curl -s -w "%{http_code}" -X POST "http://${{ secrets.SERVER_IP }}:8000/auth/login" \
-          -H "Content-Type: application/json" \
-          -d '{"email": "admin@test.com", "password": "369369"}')
-        
-        if echo "$API_RESPONSE" | grep -q "200"; then
-          echo "✅ API认证功能正常"
+        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:8000/health; then
+          echo "✅ 后端API正常"
         else
-          echo "⚠️  API认证测试结果: $API_RESPONSE"
+          echo "❌ 后端API异常"
+          exit 1
         fi
         
     - name: Deployment notification
       if: always()
       run: |
-        echo "📋 部署报告"
-        echo "============================================"
-        
         if [ "${{ job.status }}" == "success" ]; then
           echo "🎉 部署成功！"
-          echo ""
-          echo "🌐 访问地址:"
-          echo "  前端界面: http://${{ secrets.SERVER_IP }}:80"
-          echo "  后端API:  http://${{ secrets.SERVER_IP }}:8000"
-          echo "  API文档:  http://${{ secrets.SERVER_IP }}:8000/docs"
-          echo "  VSCode编辑器: http://${{ secrets.SERVER_IP }}:80/editor"
-          echo ""
-          echo "🔐 测试账号:"
-          echo "  用户名: admin"
-          echo "  邮箱: admin@test.com"
-          echo "  密码: 369369"
-          echo ""
-          echo "📊 部署信息:"
-          echo "  提交: ${{ github.sha }}"
-          echo "  分支: ${{ github.ref_name }}"
-          echo "  时间: $(date)"
-          echo ""
-          echo "✅ 所有服务已启动并通过健康检查"
+          echo "🌐 前端地址: http://${{ secrets.SERVER_IP }}:80"
+          echo "🔧 后端API: http://${{ secrets.SERVER_IP }}:8000"
+          echo "📚 API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
         else
           echo "❌ 部署失败！"
-          echo ""
-          echo "请检查以下内容:"
-          echo "1. GitHub Secrets 配置是否正确"
-          echo "2. 服务器连接是否正常"
-          echo "3. Docker 服务是否运行正常"
-          echo "4. 防火墙端口是否开放 (80, 8000, 27017, 6379)"
-          echo ""
-          echo "🔍 调试建议:"
-          echo "1. 检查服务器日志: docker-compose logs"
-          echo "2. 检查容器状态: docker-compose ps"
-          echo "3. 检查端口占用: netstat -tlnp | grep ':80\\|:8000'"
         fi
-        
-        echo "============================================"

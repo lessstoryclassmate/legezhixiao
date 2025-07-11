@@ -17,7 +17,22 @@ class Settings(BaseSettings):
     
     # 数据库配置
     MONGODB_URL: str = "mongodb://localhost:27017/ai_novel_db"
+    DATABASE_SYSTEM_URL: str = "mysql+aiomysql://lkr:Lekairong350702@172.16.16.3:3306/novel_data"
+    DATABASE_NOVEL_URL: str = "mysql+aiomysql://novel_data_user:Lekairong350702@172.16.16.2:3306/novel_user_data"
     REDIS_URL: str = "redis://localhost:6379"
+    
+    # 系统数据库配置
+    DATABASE_PORT: int = 3306
+    DATABASE_SYSTEMHOST: str = "172.16.16.3"
+    DATABASE_SYSTEM: str = "novel_data"
+    DATABASE_USER: str = "lkr"
+    DATABASE_PASSWORD: str = "Lekairong350702"
+    
+    # 用户数据库配置  
+    DATABASE_NOVELHOST: str = "172.16.16.2"
+    DATABASE_NOVELDATA: str = "novel_user_data"
+    DATABASE_NOVELUSER: str = "novel_data_user"
+    DATABASE_NOVELUSER_PASSWORD: str = "Lekairong350702"
     
     # SiliconFlow API配置
     SILICONFLOW_API_KEY: str = "sk-mjithqmjwccqgffouexthbavtnvftwkqjludpcxhrmeztcib"

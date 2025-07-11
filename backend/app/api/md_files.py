@@ -1,21 +1,21 @@
 """
 MD 文件管理系统 API
 支持基于 MD 文件的统一数据交互和模块间数据传递
-使用 MongoDB 作为统一数据库
 """
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 import os
 import json
 import re
 from datetime import datetime
 from pathlib import Path
-from bson import ObjectId
 
-from app.database import users_collection, md_files_collection
-from app.routes.auth import get_current_user
-from app.models.user_model import UserResponse
+from app.core.database import get_db
+from app.core.auth import get_current_user
+from app.models.user import User
+from app.models.novel import Novel
 from app.core.config import settings
 
 router = APIRouter()
@@ -231,38 +231,29 @@ async def get_files(
     user_id: str = Query(None, description="用户 ID"),
     novel_id: str = Query(None, description="小说 ID"),
     file_type: str = Query(None, description="文件类型"),
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """获取文件列表"""
     try:
-        # 构建查询条件
-        query = {"user_id": current_user.id}
+        # 获取用户的文件目录
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        if not user_dir.exists():
+            user_dir.mkdir(parents=True)
+            return []
         
-        if novel_id:
-            query["novel_id"] = novel_id
-        
-        if file_type:
-            query["file_type"] = file_type
-        
-        # 从MongoDB获取文件列表
-        cursor = md_files_collection.find(query)
         files = []
-        
-        async for file_doc in cursor:
-            file_data = {
-                "id": str(file_doc["_id"]),
-                "name": file_doc.get("filename", ""),
-                "type": file_doc.get("file_type", ""),
-                "content": file_doc.get("content", ""),
-                "path": file_doc.get("file_path", ""),
-                "metadata": file_doc.get("metadata", {}),
-                "sections": file_doc.get("sections", {}),
-                "word_count": file_doc.get("word_count", 0),
-                "created_at": file_doc.get("created_at", datetime.utcnow()).isoformat(),
-                "updated_at": file_doc.get("updated_at", datetime.utcnow()).isoformat(),
-                "tags": file_doc.get("tags", [])
-            }
-            files.append(file_data)
+        for file_path in user_dir.glob("*.md"):
+            file_model = MDFileModel(file_path)
+            
+            # 过滤条件
+            if file_type and file_model.file_type != file_type:
+                continue
+            
+            if novel_id and not file_model.filename.startswith(f"novel-{novel_id}-"):
+                continue
+            
+            files.append(file_model.to_dict())
         
         # 按更新时间排序
         files.sort(key=lambda x: x['updated_at'], reverse=True)
@@ -275,58 +266,31 @@ async def get_files(
 @router.post("/files", response_model=Dict[str, Any])
 async def create_file(
     file_data: Dict[str, Any],
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """创建新文件"""
     try:
-        # 解析文件信息
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        user_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 生成文件名
         file_type = file_data.get('type', 'novel')
         filename = file_data.get('name', 'untitled.md')
-        content = file_data.get('content', '')
-        novel_id = file_data.get('novel_id', '')
         
         if not filename.endswith('.md'):
             filename += '.md'
         
-        # 解析文件内容
-        metadata = MDFileParser.parse_metadata(content)
-        sections = MDFileParser.extract_content_sections(content)
-        word_count = MDFileParser.get_word_count(content)
+        file_path = user_dir / filename
         
-        # 创建MongoDB文档
-        file_doc = {
-            "user_id": current_user.id,
-            "filename": filename,
-            "file_type": file_type,
-            "novel_id": novel_id,
-            "content": content,
-            "file_path": f"/users/{current_user.id}/{filename}",
-            "metadata": metadata,
-            "sections": sections,
-            "word_count": word_count,
-            "tags": file_data.get('tags', []),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        # 保存到MongoDB
-        result = await md_files_collection.insert_one(file_doc)
-        file_doc["_id"] = result.inserted_id
+        # 写入文件
+        content = file_data.get('content', '')
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
         
         # 返回文件信息
-        return {
-            "id": str(file_doc["_id"]),
-            "name": file_doc["filename"],
-            "type": file_doc["file_type"],
-            "content": file_doc["content"],
-            "path": file_doc["file_path"],
-            "metadata": file_doc["metadata"],
-            "sections": file_doc["sections"],
-            "word_count": file_doc["word_count"],
-            "created_at": file_doc["created_at"].isoformat(),
-            "updated_at": file_doc["updated_at"].isoformat(),
-            "tags": file_doc["tags"]
-        }
+        file_model = MDFileModel(file_path)
+        return file_model.to_dict()
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"创建文件失败: {str(e)}")
@@ -335,61 +299,25 @@ async def create_file(
 async def update_file(
     file_id: str,
     file_data: Dict[str, Any],
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """更新文件"""
     try:
-        # 查找文件
-        file_doc = await md_files_collection.find_one({
-            "_id": ObjectId(file_id),
-            "user_id": current_user.id
-        })
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        file_path = user_dir / file_id
         
-        if not file_doc:
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
         
         # 更新文件内容
-        content = file_data.get('content', file_doc.get('content', ''))
-        
-        # 重新解析文件内容
-        metadata = MDFileParser.parse_metadata(content)
-        sections = MDFileParser.extract_content_sections(content)
-        word_count = MDFileParser.get_word_count(content)
-        
-        # 更新文档
-        update_data = {
-            "content": content,
-            "metadata": metadata,
-            "sections": sections,
-            "word_count": word_count,
-            "updated_at": datetime.utcnow()
-        }
-        
-        # 如果有其他字段需要更新
-        if 'tags' in file_data:
-            update_data['tags'] = file_data['tags']
-        
-        await md_files_collection.update_one(
-            {"_id": ObjectId(file_id)},
-            {"$set": update_data}
-        )
+        content = file_data.get('content', '')
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
         
         # 返回更新后的文件信息
-        updated_doc = await md_files_collection.find_one({"_id": ObjectId(file_id)})
-        
-        return {
-            "id": str(updated_doc["_id"]),
-            "name": updated_doc["filename"],
-            "type": updated_doc["file_type"],
-            "content": updated_doc["content"],
-            "path": updated_doc["file_path"],
-            "metadata": updated_doc["metadata"],
-            "sections": updated_doc["sections"],
-            "word_count": updated_doc["word_count"],
-            "created_at": updated_doc["created_at"].isoformat(),
-            "updated_at": updated_doc["updated_at"].isoformat(),
-            "tags": updated_doc.get("tags", [])
-        }
+        file_model = MDFileModel(file_path)
+        return file_model.to_dict()
     
     except HTTPException:
         raise
@@ -399,18 +327,19 @@ async def update_file(
 @router.delete("/files/{file_id}")
 async def delete_file(
     file_id: str,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """删除文件"""
     try:
-        # 查找并删除文件
-        result = await md_files_collection.delete_one({
-            "_id": ObjectId(file_id),
-            "user_id": current_user.id
-        })
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        file_path = user_dir / file_id
         
-        if result.deleted_count == 0:
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
+        
+        # 删除文件
+        file_path.unlink()
         
         return {"message": "文件删除成功"}
     
@@ -422,23 +351,23 @@ async def delete_file(
 @router.get("/files/{file_id}/content")
 async def get_file_content(
     file_id: str,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """获取文件内容"""
     try:
-        file_doc = await md_files_collection.find_one({
-            "_id": ObjectId(file_id),
-            "user_id": current_user.id
-        })
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        file_path = user_dir / file_id
         
-        if not file_doc:
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
         
+        file_model = MDFileModel(file_path)
         return {
-            "content": file_doc.get("content", ""),
-            "metadata": file_doc.get("metadata", {}),
-            "sections": file_doc.get("sections", {}),
-            "word_count": file_doc.get("word_count", 0)
+            "content": file_model.content,
+            "metadata": file_model.metadata,
+            "sections": file_model.sections,
+            "word_count": file_model.word_count
         }
     
     except HTTPException:
@@ -450,44 +379,30 @@ async def get_file_content(
 async def analyze_file(
     file_id: str,
     analysis_type: str,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """分析文件内容"""
     try:
-        file_doc = await md_files_collection.find_one({
-            "_id": ObjectId(file_id),
-            "user_id": current_user.id
-        })
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        file_path = user_dir / file_id
         
-        if not file_doc:
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
         
-        content = file_doc.get("content", "")
+        file_model = MDFileModel(file_path)
         
-        # 执行分析
-        analysis_result = await perform_analysis_content(content, analysis_type)
+        # 这里可以集成各种分析模块
+        analysis_result = await perform_analysis(file_model, analysis_type)
         
         # 保存分析结果
-        if file_doc.get("file_type") == "novel" and file_doc.get("novel_id"):
-            analysis_filename = MDFileNaming.analysis(file_doc["novel_id"], analysis_type)
+        if file_model.file_type == 'novel':
+            novel_id = file_model.filename.replace('novel-', '').replace('-main.md', '')
+            analysis_filename = MDFileNaming.analysis(novel_id, analysis_type)
+            analysis_path = user_dir / analysis_filename
             
-            # 创建分析报告文档
-            analysis_doc = {
-                "user_id": current_user.id,
-                "filename": analysis_filename,
-                "file_type": "analysis",
-                "novel_id": file_doc.get("novel_id"),
-                "content": analysis_result,
-                "file_path": f"/users/{current_user.id}/{analysis_filename}",
-                "metadata": {"analysis_type": analysis_type, "source_file_id": file_id},
-                "sections": MDFileParser.extract_content_sections(analysis_result),
-                "word_count": MDFileParser.get_word_count(analysis_result),
-                "tags": [analysis_type, "analysis"],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
-            }
-            
-            await md_files_collection.insert_one(analysis_doc)
+            with open(analysis_path, 'w', encoding='utf-8') as f:
+                f.write(analysis_result)
         
         return {
             "analysis_type": analysis_type,
@@ -503,35 +418,19 @@ async def analyze_file(
 @router.get("/files/by-novel/{novel_id}")
 async def get_files_by_novel(
     novel_id: str,
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """获取小说相关的所有文件"""
     try:
-        # 查询小说相关文件
-        cursor = md_files_collection.find({
-            "user_id": current_user.id,
-            "novel_id": novel_id
-        })
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        if not user_dir.exists():
+            return {"files": [], "novel_id": novel_id}
         
         files = []
-        total_word_count = 0
-        
-        async for file_doc in cursor:
-            file_data = {
-                "id": str(file_doc["_id"]),
-                "name": file_doc.get("filename", ""),
-                "type": file_doc.get("file_type", ""),
-                "content": file_doc.get("content", ""),
-                "path": file_doc.get("file_path", ""),
-                "metadata": file_doc.get("metadata", {}),
-                "sections": file_doc.get("sections", {}),
-                "word_count": file_doc.get("word_count", 0),
-                "created_at": file_doc.get("created_at", datetime.utcnow()).isoformat(),
-                "updated_at": file_doc.get("updated_at", datetime.utcnow()).isoformat(),
-                "tags": file_doc.get("tags", [])
-            }
-            files.append(file_data)
-            total_word_count += file_data["word_count"]
+        for file_path in user_dir.glob(f"novel-{novel_id}-*.md"):
+            file_model = MDFileModel(file_path)
+            files.append(file_model.to_dict())
         
         # 按文件类型和创建时间排序
         type_order = {'novel': 0, 'chapter': 1, 'character': 2, 'world': 3, 'plot': 4, 'analysis': 5}
@@ -541,7 +440,7 @@ async def get_files_by_novel(
             "files": files,
             "novel_id": novel_id,
             "total_count": len(files),
-            "word_count": total_word_count
+            "word_count": sum(f['word_count'] for f in files)
         }
     
     except Exception as e:
@@ -550,7 +449,8 @@ async def get_files_by_novel(
 @router.post("/files/generate")
 async def generate_file_from_module(
     generation_request: Dict[str, Any],
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """从模块生成文件"""
     try:
@@ -571,44 +471,16 @@ async def generate_file_from_module(
         else:
             raise HTTPException(status_code=400, detail="不支持的模块类型")
         
-        # 解析文件内容
-        metadata = MDFileParser.parse_metadata(content)
-        sections = MDFileParser.extract_content_sections(content)
-        word_count = MDFileParser.get_word_count(content)
+        # 保存文件
+        user_dir = MD_FILES_DIR / str(current_user.id)
+        user_dir.mkdir(parents=True, exist_ok=True)
+        file_path = user_dir / filename
         
-        # 创建文档
-        file_doc = {
-            "user_id": current_user.id,
-            "filename": filename,
-            "file_type": module_type,
-            "novel_id": novel_id,
-            "content": content,
-            "file_path": f"/users/{current_user.id}/{filename}",
-            "metadata": metadata,
-            "sections": sections,
-            "word_count": word_count,
-            "tags": content_data.get('tags', [module_type]),
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
         
-        # 保存到MongoDB
-        result = await md_files_collection.insert_one(file_doc)
-        file_doc["_id"] = result.inserted_id
-        
-        return {
-            "id": str(file_doc["_id"]),
-            "name": file_doc["filename"],
-            "type": file_doc["file_type"],
-            "content": file_doc["content"],
-            "path": file_doc["file_path"],
-            "metadata": file_doc["metadata"],
-            "sections": file_doc["sections"],
-            "word_count": file_doc["word_count"],
-            "created_at": file_doc["created_at"].isoformat(),
-            "updated_at": file_doc["updated_at"].isoformat(),
-            "tags": file_doc["tags"]
-        }
+        file_model = MDFileModel(file_path)
+        return file_model.to_dict()
     
     except HTTPException:
         raise
@@ -616,16 +488,16 @@ async def generate_file_from_module(
         raise HTTPException(status_code=500, detail=f"生成文件失败: {str(e)}")
 
 # 辅助函数
-async def perform_analysis_content(content: str, analysis_type: str) -> str:
-    """执行文件内容分析"""
+async def perform_analysis(file_model: MDFileModel, analysis_type: str) -> str:
+    """执行文件分析"""
     if analysis_type == "plot":
-        return analyze_plot(content)
+        return analyze_plot(file_model.content)
     elif analysis_type == "character":
-        return analyze_character(content)
+        return analyze_character(file_model.content)
     elif analysis_type == "style":
-        return analyze_style(content)
+        return analyze_style(file_model.content)
     elif analysis_type == "structure":
-        return analyze_structure(content)
+        return analyze_structure(file_model.content)
     else:
         return f"# 分析报告\n\n分析类型: {analysis_type}\n\n暂不支持此类型分析"
 
