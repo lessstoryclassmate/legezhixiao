@@ -33,7 +33,7 @@
 - **密码**: `Lekairong350702`
 
 **用户数据库**:
-- **地址**: `172.16.32.2:3306` (已更新)
+- **地址**: `172.16.16.2:3306` (保持不变)
 - **数据库**: `novel_user_data`
 - **用户**: `novel_data_user`
 - **密码**: `Lekairong350702`
@@ -135,7 +135,7 @@ DATABASE_SYSTEMHOST=172.16.16.3  # 保持不变
 DATABASE_SYSTEM=novel_data
 DATABASE_USER=lkr
 DATABASE_PASSWORD=Lekairong350702
-DATABASE_NOVELHOST=172.16.32.2  # 已更新
+DATABASE_NOVELHOST=172.16.16.2  # 保持不变
 DATABASE_NOVELDATA=novel_user_data
 DATABASE_NOVELUSER=novel_data_user
 DATABASE_NOVELUSER_PASSWORD=Lekairong350702

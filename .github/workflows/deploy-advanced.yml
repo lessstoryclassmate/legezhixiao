@@ -78,7 +78,7 @@ jobs:
         DATABASE_SYSTEM=novel_data
         DATABASE_USER=lkr
         DATABASE_PASSWORD=Lekairong350702
-        DATABASE_NOVELHOST=172.16.32.2
+        DATABASE_NOVELHOST=172.16.16.2
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
@@ -134,6 +134,7 @@ jobs:
               echo "📋 检查网络连接状态..."
               docker-compose exec backend ping -c 3 172.16.32.2 || echo "MongoDB/Redis连接测试失败"
               docker-compose exec backend ping -c 3 172.16.16.3 || echo "MySQL系统库连接测试失败"
+              docker-compose exec backend ping -c 3 172.16.16.2 || echo "MySQL用户库连接测试失败"
             fi
             sleep 15
           fi
@@ -273,7 +274,7 @@ jobs:
         DATABASE_SYSTEM=novel_data
         DATABASE_USER=lkr
         DATABASE_PASSWORD=Lekairong350702
-        DATABASE_NOVELHOST=172.16.32.2
+        DATABASE_NOVELHOST=172.16.16.2
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
@@ -282,7 +283,7 @@ jobs:
         echo "🔍 验证云数据库配置..."
         echo "MongoDB: 172.16.32.2:27017/ai_novel_db"
         echo "MySQL系统库: 172.16.16.3:3306/novel_data"
-        echo "MySQL用户库: 172.16.32.2:3306/novel_user_data"
+        echo "MySQL用户库: 172.16.16.2:3306/novel_user_data"
         echo "Redis: 172.16.32.2:6379"
         
         # 提升 MongoDB vm.max_map_count 参数（虽然用云数据库，但保留以防万一）
