@@ -1,43 +1,160 @@
 #!/bin/bash
 
-# 部署状态检查脚本
-# 用于检查CI/CD部署状态和服务健康
+# 快速检查部署状态脚本
+# 验证所有服务是否正常运行
 
 set -e
 
-echo "🔍 检查GitHub Actions CI/CD部署状态"
+echo "🔍 检查乐极智效服务部署状态"
 echo "=================================="
 
-# 颜色定义
+SERVER_IP="106.13.216.179"
+BASE_URL="http://$SERVER_IP"
+
+# 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 获取最新commit信息
-LATEST_COMMIT=$(git rev-parse HEAD)
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
+print_status() {
+    local status=$1
+    local message=$2
+    if [ "$status" = "OK" ]; then
+        echo -e "${GREEN}✅ $message${NC}"
+    elif [ "$status" = "WARN" ]; then
+        echo -e "${YELLOW}⚠️  $message${NC}"
+    else
+        echo -e "${RED}❌ $message${NC}"
+    fi
+}
 
-echo -e "${BLUE}📊 当前代码状态:${NC}"
-echo "  分支: $BRANCH"
-echo "  提交: $LATEST_COMMIT"
-echo "  推送时间: $(git log -1 --format='%ci')"
+# 检查服务器连通性
+echo "🌐 检查服务器连通性..."
+if ping -c 3 $SERVER_IP > /dev/null 2>&1; then
+    print_status "OK" "服务器 $SERVER_IP 可达"
+else
+    print_status "ERROR" "服务器 $SERVER_IP 不可达"
+    exit 1
+fi
+
+# 检查前端服务
 echo ""
+echo "🎨 检查前端服务..."
+FRONTEND_URL="$BASE_URL:80"
+if curl -s -f "$FRONTEND_URL" > /dev/null; then
+    print_status "OK" "前端服务运行正常 - $FRONTEND_URL"
+    
+    # 检查前端页面内容
+    FRONTEND_CONTENT=$(curl -s "$FRONTEND_URL" | head -10)
+    if echo "$FRONTEND_CONTENT" | grep -q "乐极智效" || echo "$FRONTEND_CONTENT" | grep -q "Vue"; then
+        print_status "OK" "前端页面内容正确"
+    else
+        print_status "WARN" "前端页面内容可能不正确"
+    fi
+else
+    print_status "ERROR" "前端服务不可用 - $FRONTEND_URL"
+fi
 
-# 检查GitHub Actions状态
-echo -e "${BLUE}🔄 GitHub Actions 工作流状态:${NC}"
-echo "  可以在以下链接查看构建状态:"
-echo "  https://github.com/lessstoryclassmate/legezhixiao/actions"
+# 检查后端API服务
 echo ""
+echo "🔧 检查后端API服务..."
+API_HEALTH_URL="$BASE_URL:8001/health"
+if HEALTH_RESPONSE=$(curl -s -f "$API_HEALTH_URL" 2>/dev/null); then
+    print_status "OK" "后端API健康检查通过 - $API_HEALTH_URL"
+    
+    # 解析健康检查响应
+    if echo "$HEALTH_RESPONSE" | grep -q '"status":"healthy"'; then
+        print_status "OK" "API服务状态正常"
+    else
+        print_status "WARN" "API服务状态异常: $HEALTH_RESPONSE"
+    fi
+    
+    if echo "$HEALTH_RESPONSE" | grep -q '"database":"connected"'; then
+        print_status "OK" "数据库连接正常"
+    else
+        print_status "ERROR" "数据库连接异常"
+    fi
+    
+    if echo "$HEALTH_RESPONSE" | grep -q '"redis":"connected"'; then
+        print_status "OK" "Redis连接正常"
+    else
+        print_status "WARN" "Redis连接异常"
+    fi
+else
+    print_status "ERROR" "后端API健康检查失败 - $API_HEALTH_URL"
+fi
 
-# 检查需要的GitHub Secrets
-echo -e "${BLUE}🔐 需要的GitHub Secrets:${NC}"
-cat << EOF
-  以下Secrets需要在GitHub仓库设置中配置:
-  
-  1. SERVER_SSH_KEY        - 服务器SSH私钥
-  2. SERVER_IP            - 百度云服务器IP地址
+# 检查认证服务
+echo ""
+echo "🔐 检查认证服务..."
+LOGIN_URL="$BASE_URL:8001/auth/login"
+LOGIN_DATA='{"username":"admin","password":"369369"}'
+
+if LOGIN_RESPONSE=$(curl -s -X POST "$LOGIN_URL" \
+    -H "Content-Type: application/json" \
+    -d "$LOGIN_DATA" 2>/dev/null); then
+    
+    if echo "$LOGIN_RESPONSE" | grep -q '"access_token"'; then
+        print_status "OK" "用户认证服务正常"
+        print_status "OK" "测试用户 admin/369369 登录成功"
+    else
+        print_status "ERROR" "用户认证失败: $LOGIN_RESPONSE"
+    fi
+else
+    print_status "ERROR" "无法连接认证服务 - $LOGIN_URL"
+fi
+
+# 检查API文档
+echo ""
+echo "📚 检查API文档..."
+DOCS_URL="$BASE_URL:8001/docs"
+if curl -s -f "$DOCS_URL" > /dev/null; then
+    print_status "OK" "API文档可访问 - $DOCS_URL"
+else
+    print_status "WARN" "API文档不可访问 - $DOCS_URL"
+fi
+
+# 检查端口占用
+echo ""
+echo "🔌 检查端口状态..."
+check_port() {
+    local port=$1
+    local service=$2
+    if nc -z $SERVER_IP $port 2>/dev/null; then
+        print_status "OK" "$service 端口 $port 开放"
+    else
+        print_status "ERROR" "$service 端口 $port 未开放"
+    fi
+}
+
+check_port 80 "前端HTTP"
+check_port 8001 "后端API"
+
+# 性能检查
+echo ""
+echo "⚡ 性能检查..."
+RESPONSE_TIME=$(curl -o /dev/null -s -w '%{time_total}' "$FRONTEND_URL" || echo "failed")
+if [ "$RESPONSE_TIME" != "failed" ] && (( $(echo "$RESPONSE_TIME < 2.0" | bc -l 2>/dev/null || echo 0) )); then
+    print_status "OK" "前端响应时间: ${RESPONSE_TIME}s"
+elif [ "$RESPONSE_TIME" != "failed" ]; then
+    print_status "WARN" "前端响应时间较慢: ${RESPONSE_TIME}s"
+else
+    print_status "ERROR" "前端响应时间测试失败"
+fi
+
+# 总结
+echo ""
+echo "📊 部署状态总结"
+echo "=================================="
+echo -e "🌐 服务器地址: ${BLUE}$SERVER_IP${NC}"
+echo -e "🎨 前端访问: ${BLUE}$BASE_URL:80${NC}"
+echo -e "🔧 API访问: ${BLUE}$BASE_URL:8001${NC}"
+echo -e "📚 API文档: ${BLUE}$BASE_URL:8001/docs${NC}"
+echo -e "🔐 测试用户: ${BLUE}admin / 369369${NC}"
+echo ""
+echo -e "${GREEN}✨ 检查完成！请在浏览器中访问 $BASE_URL 体验乐极智效编辑器${NC}"
   3. SERVER_USER          - 服务器用户名 (通常是root)
   4. SILICONFLOW_API_KEY  - SiliconFlow API密钥
   5. JWT_SECRET_KEY       - JWT加密密钥

@@ -314,8 +314,18 @@ jobs:
         # 备份现有部署
         if [ -d "$PROJECT_DIR/.git" ]; then
           echo "📦 备份现有部署..."
-          cp -r "$PROJECT_DIR" "$BACKUP_DIR"
-          echo "✅ 备份完成: $BACKUP_DIR"
+          if cp -r "$PROJECT_DIR" "$BACKUP_DIR" 2>/dev/null; then
+            echo "✅ 备份完成: $BACKUP_DIR"
+          else
+            echo "⚠️  备份失败，但继续部署..."
+          fi
+        elif [ -d "$PROJECT_DIR" ] && [ "$(ls -A "$PROJECT_DIR" 2>/dev/null)" ]; then
+          echo "📦 发现非Git目录，创建备份..."
+          if cp -r "$PROJECT_DIR" "$BACKUP_DIR" 2>/dev/null; then
+            echo "✅ 备份完成: $BACKUP_DIR"
+          else
+            echo "⚠️  备份失败，但继续部署..."
+          fi
         fi
         
         # 进入项目目录
@@ -323,14 +333,49 @@ jobs:
         
         # 克隆或更新代码
         if [ -d ".git" ]; then
-          echo "📦 更新代码..."
-          git fetch origin
-          git reset --hard origin/main
-          git clean -fd
+          echo "📦 更新现有Git仓库..."
+          if git fetch origin && git reset --hard origin/main && git clean -fd; then
+            echo "✅ 代码更新成功"
+          else
+            echo "❌ Git更新失败，尝试重新克隆..."
+            cd ..
+            rm -rf "$PROJECT_DIR"
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+            git clone https://github.com/$GITHUB_REPOSITORY .
+          fi
         else
-          echo "📦 克隆代码..."
-          git clone https://github.com/$GITHUB_REPOSITORY .
+          echo "📦 初始化Git仓库..."
+          # 确保目录为空（除了备份的情况）
+          if [ "$(ls -A . 2>/dev/null)" ]; then
+            echo "⚠️  目录不为空，清理现有文件..."
+            # 保留备份目录，删除其他所有文件
+            find . -maxdepth 1 -not -name '.' -not -name '..' -exec rm -rf {} + 2>/dev/null || true
+          fi
+          echo "🔄 克隆代码仓库..."
+          # 添加重试机制
+          for i in {1..3}; do
+            if git clone https://github.com/$GITHUB_REPOSITORY .; then
+              echo "✅ 代码克隆成功"
+              break
+            else
+              echo "❌ 克隆失败，尝试第 $i 次重试..."
+              sleep 5
+              if [ $i -eq 3 ]; then
+                echo "❌ 代码克隆最终失败"
+                exit 1
+              fi
+            fi
+          done
         fi
+        
+        # 验证代码克隆成功
+        if [ ! -f "docker-compose.yml" ]; then
+          echo "❌ 关键文件缺失，代码克隆可能失败"
+          ls -la
+          exit 1
+        fi
+        echo "✅ 代码验证通过"
         
         # 创建环境变量文件
         echo "🔧 配置环境变量..."
@@ -403,12 +448,22 @@ jobs:
         docker system prune -f || true
         
         # 构建和启动服务
-        echo "🔧 构建和启动服务..."
-        docker-compose build --no-cache
+        echo "🔧 构建Docker镜像..."
+        if docker-compose build --no-cache; then
+          echo "✅ Docker镜像构建成功"
+        else
+          echo "❌ Docker镜像构建失败"
+          exit 1
+        fi
         
         # 分阶段启动服务，确保 MongoDB 先启动
         echo "🍃 启动 MongoDB..."
-        docker-compose up -d mongodb
+        if docker-compose up -d mongodb; then
+          echo "✅ MongoDB容器启动命令执行成功"
+        else
+          echo "❌ MongoDB容器启动失败"
+          exit 1
+        fi
         
         echo "⏳ 等待 MongoDB 启动..."
         sleep 60
@@ -444,7 +499,24 @@ jobs:
         done
         
         echo "🚀 启动其他服务..."
-        docker-compose up -d
+        if docker-compose up -d; then
+          echo "✅ 所有服务启动命令执行成功"
+        else
+          echo "❌ 服务启动失败"
+          echo "容器状态："
+          docker-compose ps
+          echo "查看日志："
+          docker-compose logs --tail=20
+          exit 1
+        fi
+        
+        # 等待所有服务就绪
+        echo "⏳ 等待所有服务就绪..."
+        sleep 30
+        
+        # 最终状态检查
+        echo "📊 最终容器状态："
+        docker-compose ps
         
         echo "✅ 部署完成！"
         SCRIPT_EOF
