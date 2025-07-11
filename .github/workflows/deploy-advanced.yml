@@ -125,46 +125,26 @@ jobs:
           else
             echo "❌ 后端健康检查失败，等待15秒后重试..."
             if [ $i -eq 1 ] || [ $i -eq 6 ] || [ $i -eq 12 ]; then
-              echo "📋 检查系统参数 vm.max_map_count..."
-              sysctl vm.max_map_count
-              echo "📋 检查容器状态..."
-              docker-compose ps
-              echo "📋 检查后端容器日志..."
-              docker-compose logs --tail=30 backend
-              echo "📋 检查网络连接状态..."
+              echo "📋 执行详细容器诊断..."
+              chmod +x scripts/ci-container-diagnostics.sh
+              bash scripts/ci-container-diagnostics.sh
+
               
-              # 检查 MongoDB 容器连接
-              echo "🔍 测试 MongoDB 容器连接..."
-              if docker-compose exec backend ping -c 3 mongodb; then
-                echo "✅ MongoDB 容器网络可达"
-                if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/mongodb/27017"; then
-                  echo "✅ MongoDB 端口 27017 可连接"
-                else
-                  echo "❌ MongoDB 端口 27017 连接失败"
-                fi
-              else
-                echo "❌ MongoDB 容器网络不可达"
-              fi
+
               
-              # 检查 Redis 容器连接
-              echo "🔍 测试 Redis 容器连接..."
-              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/redis/6379"; then
-                echo "✅ Redis 端口 6379 可连接"
-              else
-                echo "❌ Redis 端口 6379 连接失败"
-              fi
+
               
               # 检查 MongoDB 容器状态
               echo "� 检查 MongoDB 容器状态..."
-              docker-compose exec mongodb mongosh --eval "db.adminCommand('ping')" || echo "MongoDB 容器内部检查失败"
+              docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" || echo "MongoDB 容器内部检查失败"
               
               # 检查 Redis 容器状态
               echo "� 检查 Redis 容器状态..."
-              docker-compose exec redis redis-cli ping || echo "Redis 容器内部检查失败"
+              docker-compose exec -T redis redis-cli ping || echo "Redis 容器内部检查失败"
               
               # 检查环境变量
               echo "📋 检查数据库连接环境变量..."
-              docker-compose exec backend env | grep -E "(MONGODB|REDIS|DATABASE)" || echo "环境变量检查失败"
+              docker-compose exec -T backend env | grep -E "(MONGODB|REDIS|DATABASE)" || echo "环境变量检查失败"
             fi
             sleep 15
           fi
@@ -179,7 +159,15 @@ jobs:
             docker-compose logs frontend
             echo "=== Docker 网络信息 ==="
             docker network ls
-            docker network inspect $(docker-compose exec backend cat /proc/1/cgroup | head -1 | cut -d/ -f3 | cut -c1-12)_app-network 2>/dev/null || echo "网络检查失败"
+            echo "=== 检查应用网络 ==="
+            if docker network inspect app-network >/dev/null 2>&1; then
+              echo "✅ app-network 网络存在"
+              docker network inspect app-network | head -20
+            else
+              echo "❌ app-network 网络不存在"
+            fi
+            echo "=== 检查容器网络连接 ==="
+            docker-compose exec -T backend ip route || echo "容器路由检查失败"
             exit 1
           fi
         done
