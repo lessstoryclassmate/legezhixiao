@@ -20,7 +20,9 @@ services:
 
   # MongoDB 数据库服务
   mongodb:
-    image: mongo:5.0
+    build:
+      context: ./mongodb
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -41,7 +43,9 @@ services:
 
   # Redis 缓存服务
   redis:
-    image: redis:7-alpine
+    build:
+      context: ./redis
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "6379:6379"

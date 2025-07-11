@@ -106,38 +106,62 @@ jobs:
       run: |
         echo "🔍 验证 Docker Compose 配置..."
         echo "=== 检查网络配置 ==="
-        if docker-compose config | grep -A 3 "networks:"; then
-          echo "✅ 发现网络配置"
+        
+        # 验证 docker-compose.yml 中的网络配置
+        if docker-compose config | grep -A 3 "networks:" | grep -q "app-network"; then
+          echo "✅ 发现 app-network 配置"
           docker-compose config | grep -A 10 "networks:"
         else
-          echo "❌ 网络配置缺失，检查 docker-compose.yml"
+          echo "❌ app-network 配置缺失，检查 docker-compose.yml"
           exit 1
         fi
         
         echo "🚀 测试网络创建..."
         docker-compose up -d --no-deps mongodb redis
-        sleep 10
+        sleep 15
         
         echo "=== 当前网络列表 ==="
         docker network ls
         
-        # 检查可能的网络名称
-        PROJECT_PREFIX=$(basename $PWD)
-        POSSIBLE_NETWORKS=("app-network" "${PROJECT_PREFIX}_app-network" "$(docker-compose config | grep -A 2 'app-network:' | grep 'name:' | awk '{print $2}')")
+        echo "=== 验证 app-network 网络 ==="
+        PROJECT_PREFIX=$(basename $PWD | tr '[:upper:]' '[:lower:]')
+        NETWORK_NAME="${PROJECT_PREFIX}_app-network"
         
-        NETWORK_FOUND=false
-        for net in "${POSSIBLE_NETWORKS[@]}"; do
-          if [ ! -z "$net" ] && docker network inspect "$net" >/dev/null 2>&1; then
-            echo "✅ 找到网络: $net"
-            NETWORK_FOUND=true
-            break
+        if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+          echo "✅ 找到网络: $NETWORK_NAME"
+          echo "=== 网络详情 ==="
+          docker network inspect "$NETWORK_NAME" | jq '.[0] | {Name, Driver, Scope, Containers}'
+          
+          echo "=== 验证容器网络连接 ==="
+          # 检查容器是否正确连接到网络
+          CONNECTED_CONTAINERS=$(docker network inspect "$NETWORK_NAME" | jq -r '.[0].Containers | keys[]' 2>/dev/null | wc -l)
+          echo "已连接容器数量: $CONNECTED_CONTAINERS"
+          
+          if [ "$CONNECTED_CONTAINERS" -ge 2 ]; then
+            echo "✅ 容器网络连接正常"
+          else
+            echo "⚠️ 连接的容器数量较少，请检查服务启动状态"
           fi
-        done
-        
-        if [ "$NETWORK_FOUND" = false ]; then
-          echo "❌ 未找到app-network相关网络"
-          echo "尝试的网络名称: ${POSSIBLE_NETWORKS[@]}"
+        else
+          echo "❌ 未找到网络: $NETWORK_NAME"
+          echo "尝试查找其他可能的网络名称..."
+          docker network ls | grep app
           exit 1
+        fi
+        
+        echo "🔍 测试服务间网络通信..."
+        # 测试 MongoDB 服务发现
+        if docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" 2>/dev/null; then
+          echo "✅ MongoDB 服务可通过网络访问"
+        else
+          echo "❌ MongoDB 网络访问失败"
+        fi
+        
+        # 测试 Redis 服务发现
+        if docker-compose exec -T redis redis-cli ping 2>/dev/null; then
+          echo "✅ Redis 服务可通过网络访问"
+        else
+          echo "❌ Redis 网络访问失败"
         fi
         
         echo "🛑 停止测试容器..."
@@ -201,23 +225,31 @@ jobs:
             echo "=== Docker 网络信息 ==="
             docker network ls
             echo "=== 检查应用网络 ==="
-            # 使用智能网络检测
-            PROJECT_PREFIX=$(basename $PWD)
-            POSSIBLE_NETWORKS=("app-network" "${PROJECT_PREFIX}_app-network")
+            PROJECT_PREFIX=$(basename $PWD | tr '[:upper:]' '[:lower:]')
+            NETWORK_NAME="${PROJECT_PREFIX}_app-network"
             
-            NETWORK_FOUND=false
-            for net in "${POSSIBLE_NETWORKS[@]}"; do
-              if docker network inspect "$net" >/dev/null 2>&1; then
-                echo "✅ $net 网络存在"
-                docker network inspect "$net" | head -20
-                NETWORK_FOUND=true
-                break
+            if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+              echo "✅ $NETWORK_NAME 网络存在"
+              
+              # 显示网络详细信息
+              echo "=== 网络配置详情 ==="
+              docker network inspect "$NETWORK_NAME" | jq '.[0] | {Name, Driver, Scope, IPAM, Containers}' 2>/dev/null || docker network inspect "$NETWORK_NAME" | head -20
+              
+              # 检查容器网络连接
+              echo "=== 容器网络连接状态 ==="
+              CONNECTED_CONTAINERS=$(docker network inspect "$NETWORK_NAME" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
+              if [ -n "$CONNECTED_CONTAINERS" ]; then
+                echo "已连接的容器:"
+                echo "$CONNECTED_CONTAINERS" | sed 's/^/  - /'
+              else
+                echo "⚠️ 暂无容器连接到网络"
               fi
-            done
-            
-            if [ "$NETWORK_FOUND" = false ]; then
-              echo "❌ 未找到 app-network 相关网络"
-              echo "尝试的网络: ${POSSIBLE_NETWORKS[@]}"
+            else
+              echo "❌ 未找到网络: $NETWORK_NAME"
+              echo "=== 可用网络列表 ==="
+              docker network ls
+              echo "=== 尝试查找相关网络 ==="
+              docker network ls | grep -E "(app|legezhixiao)" || echo "未找到相关网络"
             fi
             echo "=== 检查容器网络连接 ==="
             docker-compose exec -T backend ip route || echo "容器路由检查失败"
@@ -439,6 +471,13 @@ jobs:
                     docker-compose -f docker-compose.production.yml ps
                     echo "📋 检查后端日志..."
                     docker-compose -f docker-compose.production.yml logs --tail=20 backend
+                    
+                    # 执行生产环境特定诊断
+                    if [ $i -eq 10 ]; then
+                        echo "🔍 执行生产环境诊断..."
+                        chmod +x scripts/production-diagnostics.sh
+                        NODE_ENV=production bash scripts/production-diagnostics.sh
+                    fi
                 fi
                 sleep 15
             fi

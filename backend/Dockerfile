@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     iproute2 \
     iputils-ping \
     net-tools \
+    dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
