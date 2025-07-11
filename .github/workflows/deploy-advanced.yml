@@ -1,0 +1,301 @@
+name: Deploy AI Novel Editor
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: ai-novel-editor
+  DEPLOY_DIR: /opt/ai-novel-editor
+
+jobs:
+  # 代码质量检查
+  quality-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        
+    - name: Run Python linting
+      run: |
+        cd backend
+        python -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+        
+    - name: Run frontend linting
+      run: |
+        cd frontend
+        npm run lint
+
+  # 构建测试
+  build:
+    needs: quality-check
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install docker-compose
+      run: sudo apt-get update && sudo apt-get install -y docker-compose
+      
+    - name: Create test environment file
+      run: |
+        cat > .env << EOF
+        MONGO_INITDB_ROOT_USERNAME=admin
+        MONGO_PASSWORD=Lekairong350702
+        REDIS_PASSWORD=Lekairong350702
+        SILICONFLOW_API_KEY=sk-test-key
+        JWT_SECRET_KEY=test-jwt-secret-key
+        DATABASE_SYSTEMHOST=172.16.16.3
+        DATABASE_SYSTEM=novel_data
+        DATABASE_USER=lkr
+        DATABASE_PASSWORD=Lekairong350702
+        DATABASE_NOVELHOST=172.16.16.2
+        DATABASE_NOVELDATA=novel_user_data
+        DATABASE_NOVELUSER=novel_data_user
+        DATABASE_NOVELUSER_PASSWORD=Lekairong350702
+        SERVER_IP=localhost
+        MCP_SERVER_NAME=novel-ai-server
+        MCP_SERVER_PORT=8000
+        MCP_SERVER_HOST=localhost
+        MCP_TOOLS_ENABLED=true
+        MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
+        NOVEL_GENERATION_MAX_TOKENS=4096
+        NOVEL_GENERATION_TEMPERATURE=0.8
+        NOVEL_GENERATION_TOP_P=0.9
+        SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+        EOF
+      
+    - name: Build Docker images
+      run: docker-compose build --no-cache
+        
+    - name: Test Docker containers
+      run: |
+        echo "🚀 启动Docker服务..."
+        docker-compose up -d
+        
+        echo "⏳ 等待容器启动..."
+        sleep 30
+        
+        echo "🔍 检查容器状态..."
+        docker-compose ps
+        
+        echo "📋 检查MongoDB容器日志..."
+        docker-compose logs mongodb
+        
+        echo "📋 检查后端容器日志..."
+        docker-compose logs backend
+        
+        echo "🏥 执行健康检查..."
+        for i in {1..5}; do
+          echo "尝试第 $i 次健康检查..."
+          if curl -f http://localhost:8000/health; then
+            echo "✅ 健康检查成功"
+            break
+          else
+            echo "❌ 健康检查失败，等待10秒后重试..."
+            sleep 10
+          fi
+          
+          if [ $i -eq 5 ]; then
+            echo "❌ 健康检查最终失败"
+            docker-compose logs
+            exit 1
+          fi
+        done
+        
+        echo "🛑 停止测试容器..."
+        docker-compose down
+
+  # 部署到生产环境
+  deploy:
+    needs: [quality-check, build]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.8.0
+      with:
+        ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+        
+    - name: Add server to known hosts
+      run: ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+        
+    - name: Deploy to production server
+      env:
+        DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+        JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+        MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+        REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+      run: |
+        # 创建部署脚本
+        cat > deploy_script.sh << 'SCRIPT_EOF'
+        #!/bin/bash
+        set -e
+        
+        echo "🚀 开始部署AI小说编辑器..."
+        
+        # 设置部署目录
+        PROJECT_DIR="/opt/ai-novel-editor"
+        BACKUP_DIR="/opt/backups/ai-novel-editor-$(date +%Y%m%d_%H%M%S)"
+        
+        # 创建目录
+        sudo mkdir -p "$PROJECT_DIR"
+        sudo mkdir -p "$(dirname "$BACKUP_DIR")"
+        sudo chown $USER:$USER "$PROJECT_DIR"
+        sudo chown $USER:$USER "$(dirname "$BACKUP_DIR")"
+        
+        # 备份现有部署
+        if [ -d "$PROJECT_DIR/.git" ]; then
+          echo "📦 备份现有部署..."
+          cp -r "$PROJECT_DIR" "$BACKUP_DIR"
+          echo "✅ 备份完成: $BACKUP_DIR"
+        fi
+        
+        # 进入项目目录
+        cd "$PROJECT_DIR"
+        
+        # 克隆或更新代码
+        if [ -d ".git" ]; then
+          echo "📦 更新代码..."
+          git fetch origin
+          git reset --hard origin/main
+          git clean -fd
+        else
+          echo "📦 克隆代码..."
+          git clone https://github.com/$GITHUB_REPOSITORY .
+        fi
+        
+        # 创建环境变量文件
+        echo "🔧 配置环境变量..."
+        cat > .env << EOF
+        SERVER_IP=$DEPLOY_HOST
+        SERVER_USER=root
+        SERVER_SSH_PORT=22
+        SERVER_PORT=22
+        SILICONFLOW_API_KEY=$SILICONFLOW_API_KEY
+        SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
+        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+        MCP_SERVER_NAME=novel-ai-server
+        MCP_SERVER_PORT=8000
+        MCP_SERVER_HOST=$DEPLOY_HOST
+        MCP_TOOLS_ENABLED=true
+        MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
+        NOVEL_GENERATION_MAX_TOKENS=4096
+        NOVEL_GENERATION_TEMPERATURE=0.8
+        NOVEL_GENERATION_TOP_P=0.9
+        JWT_SECRET_KEY=$JWT_SECRET_KEY
+        MONGO_INITDB_ROOT_USERNAME=admin
+        MONGO_PASSWORD=$MONGO_PASSWORD
+        REDIS_PASSWORD=$REDIS_PASSWORD
+        DATABASE_PORT=3306
+        DATABASE_SYSTEMHOST=172.16.16.3
+        DATABASE_SYSTEM=novel_data
+        DATABASE_USER=lkr
+        DATABASE_PASSWORD=Lekairong350702
+        DATABASE_NOVELHOST=172.16.16.2
+        DATABASE_NOVELDATA=novel_user_data
+        DATABASE_NOVELUSER=novel_data_user
+        DATABASE_NOVELUSER_PASSWORD=Lekairong350702
+        DEPLOY_HOST=$DEPLOY_HOST
+        EOF
+        
+        echo "🔍 验证MongoDB配置..."
+        echo "MONGO_INITDB_ROOT_USERNAME: admin"
+        echo "MONGO_PASSWORD: $MONGO_PASSWORD"
+        
+        # 设置脚本权限
+        chmod +x scripts/*.sh || true
+        
+        # 停止现有服务
+        echo "🛑 停止现有服务..."
+        docker-compose down || true
+        
+        # 清理Docker缓存
+        echo "🧹 清理Docker缓存..."
+        docker system prune -f || true
+        
+        # 构建和启动服务
+        echo "🔧 构建和启动服务..."
+        docker-compose build --no-cache
+        docker-compose up -d
+        
+        echo "✅ 部署完成！"
+        SCRIPT_EOF
+        
+        # 执行部署脚本
+        scp deploy_script.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/tmp/
+        ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+          "export DEPLOY_HOST='$DEPLOY_HOST' && \
+           export SILICONFLOW_API_KEY='$SILICONFLOW_API_KEY' && \
+           export JWT_SECRET_KEY='$JWT_SECRET_KEY' && \
+           export MONGO_PASSWORD='$MONGO_PASSWORD' && \
+           export REDIS_PASSWORD='$REDIS_PASSWORD' && \
+           export GITHUB_REPOSITORY='${{ github.repository }}' && \
+           chmod +x /tmp/deploy_script.sh && \
+           bash /tmp/deploy_script.sh"
+        
+    - name: Wait for services to start
+      run: |
+        echo "⏳ 等待服务启动..."
+        sleep 60
+        
+    - name: Health check
+      run: |
+        echo "🔍 执行健康检查..."
+        
+        # 检查前端服务
+        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:80; then
+          echo "✅ 前端服务正常"
+        else
+          echo "❌ 前端服务异常"
+          exit 1
+        fi
+        
+        # 检查后端API
+        if curl -f --max-time 30 http://${{ secrets.DEPLOY_HOST }}:8000/health; then
+          echo "✅ 后端API正常"
+        else
+          echo "❌ 后端API异常"
+          exit 1
+        fi
+        
+    - name: Deployment notification
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 部署成功！"
+          echo "🌐 前端地址: http://${{ secrets.DEPLOY_HOST }}:80"
+          echo "🔧 后端API: http://${{ secrets.DEPLOY_HOST }}:8000"
+          echo "📚 API文档: http://${{ secrets.DEPLOY_HOST }}:8000/docs"
+        else
+          echo "❌ 部署失败！"
+        fi
