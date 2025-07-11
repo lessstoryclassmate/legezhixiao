@@ -63,8 +63,6 @@ jobs:
     - name: Create test environment file
       run: |
         cat > .env << EOF
-        MONGO_INITDB_ROOT_USERNAME=admin
-        MONGO_PASSWORD=Lekairong350702
         REDIS_PASSWORD=Lekairong350702
         SILICONFLOW_API_KEY=sk-test-key
         JWT_SECRET_KEY=test-jwt-secret-key
@@ -87,7 +85,7 @@ jobs:
         NOVEL_GENERATION_TOP_P=0.9
         SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
         SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
-        MONGODB_URL=mongodb://admin:Lekairong350702@mongodb:27017/ai_novel_db
+        MONGODB_URL=mongodb://mongodb:27017/ai_novel_db
         MONGO_INITDB_DATABASE=ai_novel_db
         EOF
       
@@ -192,7 +190,6 @@ jobs:
         SERVER_IP: ${{ secrets.SERVER_IP }}
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
         JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-        MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
         REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN_CUSTOM }}
       run: |
@@ -279,8 +276,6 @@ jobs:
         NOVEL_GENERATION_TEMPERATURE=0.8
         NOVEL_GENERATION_TOP_P=0.9
         JWT_SECRET_KEY=$JWT_SECRET_KEY
-        MONGO_INITDB_ROOT_USERNAME=admin
-        MONGO_PASSWORD=$MONGO_PASSWORD
         REDIS_PASSWORD=$REDIS_PASSWORD
         DATABASE_PORT=3306
         DATABASE_SYSTEMHOST=172.16.16.3
@@ -291,14 +286,12 @@ jobs:
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
-        MONGODB_URL=mongodb://admin:$MONGO_PASSWORD@mongodb:27017/ai_novel_db
+        MONGODB_URL=mongodb://mongodb:27017/ai_novel_db
         MONGO_INITDB_DATABASE=ai_novel_db
         EOF
         
         echo "🔍 验证MongoDB配置..."
-        echo "MONGO_INITDB_ROOT_USERNAME: admin"
-        echo "MONGO_PASSWORD: $MONGO_PASSWORD"
-        echo "MONGODB_URL: mongodb://admin:***@mongodb:27017/ai_novel_db"
+        echo "MongoDB连接: mongodb://mongodb:27017/ai_novel_db (匿名访问)"
         
         # 提升 MongoDB vm.max_map_count 参数
         echo "⚙️  提升 MongoDB vm.max_map_count 参数..."
@@ -364,7 +357,6 @@ jobs:
           "export SERVER_IP='$SERVER_IP' && \
            export SILICONFLOW_API_KEY='$SILICONFLOW_API_KEY' && \
            export JWT_SECRET_KEY='$JWT_SECRET_KEY' && \
-           export MONGO_PASSWORD='$MONGO_PASSWORD' && \
            export REDIS_PASSWORD='$REDIS_PASSWORD' && \
            export GITHUB_TOKEN='$GITHUB_TOKEN' && \
            export GITHUB_REPOSITORY='${{ github.repository }}' && \
