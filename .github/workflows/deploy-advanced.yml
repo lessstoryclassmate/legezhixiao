@@ -64,10 +64,10 @@ jobs:
       run: |
         cat > .env << EOF
         # 云数据库配置 - 使用内网 IP
-        MONGODB_HOST=172.16.16.2
+        MONGODB_HOST=172.16.32.2
         MONGODB_PORT=27017
         MONGODB_DATABASE=ai_novel_db
-        REDIS_HOST=172.16.16.4
+        REDIS_HOST=172.16.32.2
         REDIS_PORT=6379
         REDIS_PASSWORD=Lekairong350702
         # AI 服务配置
@@ -78,7 +78,7 @@ jobs:
         DATABASE_SYSTEM=novel_data
         DATABASE_USER=lkr
         DATABASE_PASSWORD=Lekairong350702
-        DATABASE_NOVELHOST=172.16.16.2
+        DATABASE_NOVELHOST=172.16.32.2
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
@@ -132,9 +132,8 @@ jobs:
               echo "📋 检查后端容器日志..."
               docker-compose logs --tail=30 backend
               echo "📋 检查网络连接状态..."
-              docker-compose exec backend ping -c 3 172.16.16.2 || echo "MongoDB连接测试失败"
-              docker-compose exec backend ping -c 3 172.16.16.3 || echo "MySQL连接测试失败"
-              docker-compose exec backend ping -c 3 172.16.16.4 || echo "Redis连接测试失败"
+              docker-compose exec backend ping -c 3 172.16.32.2 || echo "MongoDB/Redis连接测试失败"
+              docker-compose exec backend ping -c 3 172.16.16.3 || echo "MySQL系统库连接测试失败"
             fi
             sleep 15
           fi
@@ -262,10 +261,10 @@ jobs:
         NOVEL_GENERATION_TEMPERATURE=0.8
         NOVEL_GENERATION_TOP_P=0.9
         # 云数据库配置 - 使用内网 IP
-        MONGODB_HOST=172.16.16.2
+        MONGODB_HOST=172.16.32.2
         MONGODB_PORT=27017
         MONGODB_DATABASE=ai_novel_db
-        REDIS_HOST=172.16.16.4
+        REDIS_HOST=172.16.32.2
         REDIS_PORT=6379
         REDIS_PASSWORD=$REDIS_PASSWORD
         # MySQL 数据库配置
@@ -274,17 +273,17 @@ jobs:
         DATABASE_SYSTEM=novel_data
         DATABASE_USER=lkr
         DATABASE_PASSWORD=Lekairong350702
-        DATABASE_NOVELHOST=172.16.16.2
+        DATABASE_NOVELHOST=172.16.32.2
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
         EOF
         
         echo "🔍 验证云数据库配置..."
-        echo "MongoDB: 172.16.16.2:27017/ai_novel_db"
+        echo "MongoDB: 172.16.32.2:27017/ai_novel_db"
         echo "MySQL系统库: 172.16.16.3:3306/novel_data"
-        echo "MySQL用户库: 172.16.16.2:3306/novel_user_data"
-        echo "Redis: 172.16.16.4:6379"
+        echo "MySQL用户库: 172.16.32.2:3306/novel_user_data"
+        echo "Redis: 172.16.32.2:6379"
         
         # 提升 MongoDB vm.max_map_count 参数（虽然用云数据库，但保留以防万一）
         echo "⚙️  提升 MongoDB vm.max_map_count 参数..."
