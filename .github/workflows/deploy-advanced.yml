@@ -105,38 +105,42 @@ jobs:
     - name: Verify Docker network setup
       run: |
         echo "🔍 验证 Docker Compose 配置..."
-        docker-compose config --quiet
-        
-        echo "🚀 启动服务并验证网络创建..."
-        docker-compose up -d --remove-orphans
-        
-        echo "⏳ 等待网络创建..."
-        sleep 10
-        
-        echo "🔍 检查网络是否创建成功..."
-        if docker network inspect app-network >/dev/null 2>&1; then
-          echo "✅ app-network 网络创建成功"
-          docker network inspect app-network | head -20
+        echo "=== 检查网络配置 ==="
+        if docker-compose config | grep -A 3 "networks:"; then
+          echo "✅ 发现网络配置"
+          docker-compose config | grep -A 10 "networks:"
         else
-          echo "❌ app-network 网络创建失败"
-          echo "=== 可用网络列表 ==="
-          docker network ls
-          echo "=== Docker Compose 网络配置 ==="
-          docker-compose config | grep -A 10 networks:
+          echo "❌ 网络配置缺失，检查 docker-compose.yml"
           exit 1
         fi
         
-        echo "🔍 检查容器网络连接..."
-        for service in mongodb redis backend; do
-          if docker-compose ps $service | grep -q "Up"; then
-            echo "✅ $service 容器运行中"
-          else
-            echo "❌ $service 容器未运行"
-            docker-compose logs $service
+        echo "🚀 测试网络创建..."
+        docker-compose up -d --no-deps mongodb redis
+        sleep 10
+        
+        echo "=== 当前网络列表 ==="
+        docker network ls
+        
+        # 检查可能的网络名称
+        PROJECT_PREFIX=$(basename $PWD)
+        POSSIBLE_NETWORKS=("app-network" "${PROJECT_PREFIX}_app-network" "$(docker-compose config | grep -A 2 'app-network:' | grep 'name:' | awk '{print $2}')")
+        
+        NETWORK_FOUND=false
+        for net in "${POSSIBLE_NETWORKS[@]}"; do
+          if [ ! -z "$net" ] && docker network inspect "$net" >/dev/null 2>&1; then
+            echo "✅ 找到网络: $net"
+            NETWORK_FOUND=true
+            break
           fi
         done
         
-        echo "🛑 停止服务进行完整重启..."
+        if [ "$NETWORK_FOUND" = false ]; then
+          echo "❌ 未找到app-network相关网络"
+          echo "尝试的网络名称: ${POSSIBLE_NETWORKS[@]}"
+          exit 1
+        fi
+        
+        echo "🛑 停止测试容器..."
         docker-compose down
         
     - name: Test Docker containers
@@ -197,11 +201,23 @@ jobs:
             echo "=== Docker 网络信息 ==="
             docker network ls
             echo "=== 检查应用网络 ==="
-            if docker network inspect app-network >/dev/null 2>&1; then
-              echo "✅ app-network 网络存在"
-              docker network inspect app-network | head -20
-            else
-              echo "❌ app-network 网络不存在"
+            # 使用智能网络检测
+            PROJECT_PREFIX=$(basename $PWD)
+            POSSIBLE_NETWORKS=("app-network" "${PROJECT_PREFIX}_app-network")
+            
+            NETWORK_FOUND=false
+            for net in "${POSSIBLE_NETWORKS[@]}"; do
+              if docker network inspect "$net" >/dev/null 2>&1; then
+                echo "✅ $net 网络存在"
+                docker network inspect "$net" | head -20
+                NETWORK_FOUND=true
+                break
+              fi
+            done
+            
+            if [ "$NETWORK_FOUND" = false ]; then
+              echo "❌ 未找到 app-network 相关网络"
+              echo "尝试的网络: ${POSSIBLE_NETWORKS[@]}"
             fi
             echo "=== 检查容器网络连接 ==="
             docker-compose exec -T backend ip route || echo "容器路由检查失败"
