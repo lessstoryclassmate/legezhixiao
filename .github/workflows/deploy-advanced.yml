@@ -63,17 +63,17 @@ jobs:
     - name: Create test environment file
       run: |
         cat > .env << EOF
-        # 云数据库配置 - 使用内网 IP
-        MONGODB_HOST=172.16.32.2
+        # 测试环境 - 使用本地容器服务
+        MONGODB_HOST=mongodb
         MONGODB_PORT=27017
         MONGODB_DATABASE=ai_novel_db
-        REDIS_HOST=172.16.32.2
+        REDIS_HOST=redis
         REDIS_PORT=6379
         REDIS_PASSWORD=Lekairong350702
         # AI 服务配置
         SILICONFLOW_API_KEY=sk-test-key
         JWT_SECRET_KEY=test-jwt-secret-key
-        # MySQL 数据库配置
+        # MySQL 数据库配置（仍使用云服务，但CI环境可能无法连接）
         DATABASE_SYSTEMHOST=172.16.16.3
         DATABASE_SYSTEM=novel_data
         DATABASE_USER=lkr
@@ -133,41 +133,34 @@ jobs:
               docker-compose logs --tail=30 backend
               echo "📋 检查网络连接状态..."
               
-              # 检查 MongoDB 连接
-              echo "🔍 测试 MongoDB 连接 (172.16.32.2:27017)..."
-              if docker-compose exec backend ping -c 3 172.16.32.2; then
-                echo "✅ MongoDB 服务器网络可达"
-                if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/27017"; then
+              # 检查 MongoDB 容器连接
+              echo "🔍 测试 MongoDB 容器连接..."
+              if docker-compose exec backend ping -c 3 mongodb; then
+                echo "✅ MongoDB 容器网络可达"
+                if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/mongodb/27017"; then
                   echo "✅ MongoDB 端口 27017 可连接"
                 else
-                  echo "❌ MongoDB 端口 27017 连接失败 - 可能是防火墙或服务未启动"
+                  echo "❌ MongoDB 端口 27017 连接失败"
                 fi
               else
-                echo "❌ MongoDB 服务器网络不可达 - 检查网络路由"
+                echo "❌ MongoDB 容器网络不可达"
               fi
               
-              # 检查 Redis 连接
-              echo "🔍 测试 Redis 连接 (172.16.32.2:6379)..."
-              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/6379"; then
+              # 检查 Redis 容器连接
+              echo "🔍 测试 Redis 容器连接..."
+              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/redis/6379"; then
                 echo "✅ Redis 端口 6379 可连接"
               else
                 echo "❌ Redis 端口 6379 连接失败"
               fi
               
-              # 检查 MySQL 连接
-              echo "🔍 测试 MySQL 系统库连接 (172.16.16.3:3306)..."
-              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.16.3/3306"; then
-                echo "✅ MySQL 系统库端口 3306 可连接"
-              else
-                echo "❌ MySQL 系统库端口 3306 连接失败"
-              fi
+              # 检查 MongoDB 容器状态
+              echo "� 检查 MongoDB 容器状态..."
+              docker-compose exec mongodb mongosh --eval "db.adminCommand('ping')" || echo "MongoDB 容器内部检查失败"
               
-              echo "🔍 测试 MySQL 用户库连接 (172.16.16.2:3306)..."
-              if docker-compose exec backend timeout 10 bash -c "echo > /dev/tcp/172.16.16.2/3306"; then
-                echo "✅ MySQL 用户库端口 3306 可连接"
-              else
-                echo "❌ MySQL 用户库端口 3306 连接失败"
-              fi
+              # 检查 Redis 容器状态
+              echo "� 检查 Redis 容器状态..."
+              docker-compose exec redis redis-cli ping || echo "Redis 容器内部检查失败"
               
               # 检查环境变量
               echo "📋 检查数据库连接环境变量..."
@@ -376,7 +369,7 @@ jobs:
         
         # 停止现有服务
         echo "🛑 停止现有服务..."
-        docker-compose down || true
+        docker-compose -f docker-compose.production.yml down || true
         
         # 清理Docker缓存
         echo "🧹 清理Docker缓存..."
@@ -384,10 +377,10 @@ jobs:
         
         # 构建和启动服务
         echo "🔧 构建和启动服务..."
-        docker-compose build --no-cache
+        docker-compose -f docker-compose.production.yml build --no-cache
         
         echo "🚀 启动服务..."
-        docker-compose up -d
+        docker-compose -f docker-compose.production.yml up -d
         
         echo "⏳ 等待服务启动..."
         sleep 60
@@ -402,16 +395,16 @@ jobs:
             else
                 if [ $i -eq 5 ] || [ $i -eq 10 ]; then
                     echo "📋 检查容器状态..."
-                    docker-compose ps
+                    docker-compose -f docker-compose.production.yml ps
                     echo "📋 检查后端日志..."
-                    docker-compose logs --tail=20 backend
+                    docker-compose -f docker-compose.production.yml logs --tail=20 backend
                 fi
                 sleep 15
             fi
             
             if [ $i -eq 10 ]; then
                 echo "❌ 后端服务启动失败"
-                docker-compose logs backend
+                docker-compose -f docker-compose.production.yml logs backend
                 exit 1
             fi
         done
