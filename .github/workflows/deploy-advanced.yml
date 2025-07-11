@@ -63,9 +63,17 @@ jobs:
     - name: Create test environment file
       run: |
         cat > .env << EOF
+        # 云数据库配置 - 使用内网 IP
+        MONGODB_HOST=172.16.16.2
+        MONGODB_PORT=27017
+        MONGODB_DATABASE=ai_novel_db
+        REDIS_HOST=172.16.16.4
+        REDIS_PORT=6379
         REDIS_PASSWORD=Lekairong350702
+        # AI 服务配置
         SILICONFLOW_API_KEY=sk-test-key
         JWT_SECRET_KEY=test-jwt-secret-key
+        # MySQL 数据库配置
         DATABASE_SYSTEMHOST=172.16.16.3
         DATABASE_SYSTEM=novel_data
         DATABASE_USER=lkr
@@ -74,6 +82,7 @@ jobs:
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
+        # 服务配置
         SERVER_IP=localhost
         MCP_SERVER_NAME=novel-ai-server
         MCP_SERVER_PORT=8000
@@ -85,8 +94,6 @@ jobs:
         NOVEL_GENERATION_TOP_P=0.9
         SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
         SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
-        MONGODB_URL=mongodb://mongodb:27017/ai_novel_db
-        MONGO_INITDB_DATABASE=ai_novel_db
         EOF
       
     - name: 提升 MongoDB vm.max_map_count 参数
@@ -100,41 +107,14 @@ jobs:
         echo "🚀 启动Docker服务..."
         docker-compose up -d
         
-        echo "⏳ 等待MongoDB容器启动..."
-        sleep 60
-        
-        echo "🔍 检查MongoDB健康状态..."
-        for i in {1..15}; do
-          echo "检查MongoDB健康状态第 $i 次..."
-          if docker-compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1; then
-            echo "✅ MongoDB健康检查成功"
-            break
-          else
-            echo "❌ MongoDB还未就绪，等待10秒后重试..."
-            sleep 10
-          fi
-          
-          if [ $i -eq 15 ]; then
-            echo "❌ MongoDB健康检查最终失败"
-            echo "MongoDB容器状态："
-            docker-compose ps mongodb
-            echo "MongoDB容器日志："
-            docker-compose logs --tail=50 mongodb
-            exit 1
-          fi
-        done
-        
         echo "⏳ 等待后端容器启动..."
-        sleep 45
+        sleep 60
         
         echo "🔍 检查容器状态..."
         docker-compose ps
         
-        echo "📋 检查MongoDB容器日志..."
-        docker-compose logs --tail=20 mongodb
-        
         echo "📋 检查后端容器日志..."
-        docker-compose logs --tail=20 backend
+        docker-compose logs --tail=30 backend
         
         echo "🏥 执行后端健康检查..."
         for i in {1..12}; do
@@ -149,10 +129,12 @@ jobs:
               sysctl vm.max_map_count
               echo "📋 检查容器状态..."
               docker-compose ps
-              echo "📋 检查MongoDB容器日志..."
-              docker-compose logs --tail=30 mongodb
               echo "📋 检查后端容器日志..."
               docker-compose logs --tail=30 backend
+              echo "📋 检查网络连接状态..."
+              docker-compose exec backend ping -c 3 172.16.16.2 || echo "MongoDB连接测试失败"
+              docker-compose exec backend ping -c 3 172.16.16.3 || echo "MySQL连接测试失败"
+              docker-compose exec backend ping -c 3 172.16.16.4 || echo "Redis连接测试失败"
             fi
             sleep 15
           fi
@@ -260,13 +242,17 @@ jobs:
         # 创建环境变量文件
         echo "🔧 配置环境变量..."
         cat > .env << EOF
+        # 服务器配置
         SERVER_IP=$SERVER_IP
         SERVER_USER=root
         SERVER_SSH_PORT=22
         SERVER_PORT=22
+        # AI 服务配置
         SILICONFLOW_API_KEY=$SILICONFLOW_API_KEY
         SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
         SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+        JWT_SECRET_KEY=$JWT_SECRET_KEY
+        # MCP 服务配置
         MCP_SERVER_NAME=novel-ai-server
         MCP_SERVER_PORT=8000
         MCP_SERVER_HOST=$SERVER_IP
@@ -275,8 +261,14 @@ jobs:
         NOVEL_GENERATION_MAX_TOKENS=4096
         NOVEL_GENERATION_TEMPERATURE=0.8
         NOVEL_GENERATION_TOP_P=0.9
-        JWT_SECRET_KEY=$JWT_SECRET_KEY
+        # 云数据库配置 - 使用内网 IP
+        MONGODB_HOST=172.16.16.2
+        MONGODB_PORT=27017
+        MONGODB_DATABASE=ai_novel_db
+        REDIS_HOST=172.16.16.4
+        REDIS_PORT=6379
         REDIS_PASSWORD=$REDIS_PASSWORD
+        # MySQL 数据库配置
         DATABASE_PORT=3306
         DATABASE_SYSTEMHOST=172.16.16.3
         DATABASE_SYSTEM=novel_data
@@ -286,14 +278,15 @@ jobs:
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
-        MONGODB_URL=mongodb://mongodb:27017/ai_novel_db
-        MONGO_INITDB_DATABASE=ai_novel_db
         EOF
         
-        echo "🔍 验证MongoDB配置..."
-        echo "MongoDB连接: mongodb://mongodb:27017/ai_novel_db (匿名访问)"
+        echo "🔍 验证云数据库配置..."
+        echo "MongoDB: 172.16.16.2:27017/ai_novel_db"
+        echo "MySQL系统库: 172.16.16.3:3306/novel_data"
+        echo "MySQL用户库: 172.16.16.2:3306/novel_user_data"
+        echo "Redis: 172.16.16.4:6379"
         
-        # 提升 MongoDB vm.max_map_count 参数
+        # 提升 MongoDB vm.max_map_count 参数（虽然用云数据库，但保留以防万一）
         echo "⚙️  提升 MongoDB vm.max_map_count 参数..."
         sudo sysctl -w vm.max_map_count=1677720
         echo "✅ vm.max_map_count 已设置为 1677720"
@@ -305,14 +298,6 @@ jobs:
         echo "🛑 停止现有服务..."
         docker-compose down || true
         
-        # 检查并清理有问题的 MongoDB 数据卷
-        echo "🔍 检查 MongoDB 数据卷状态..."
-        if docker volume ls | grep -q "legezhixiao_mongodb_data"; then
-            echo "发现现有 MongoDB 数据卷，为避免重启问题，将进行清理..."
-            docker volume rm legezhixiao_mongodb_data || true
-            echo "✅ MongoDB 数据卷已清理"
-        fi
-        
         # 清理Docker缓存
         echo "🧹 清理Docker缓存..."
         docker system prune -f || true
@@ -321,32 +306,35 @@ jobs:
         echo "🔧 构建和启动服务..."
         docker-compose build --no-cache
         
-        # 分阶段启动服务，确保 MongoDB 先启动
-        echo "🍃 启动 MongoDB..."
-        docker-compose up -d mongodb
+        echo "🚀 启动服务..."
+        docker-compose up -d
         
-        echo "⏳ 等待 MongoDB 启动..."
+        echo "⏳ 等待服务启动..."
         sleep 60
         
-        # 检查 MongoDB 健康状态
+        # 检查服务健康状态
+        echo "🔍 检查服务健康状态..."
         for i in {1..10}; do
-            if docker-compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" 2>/dev/null; then
-                echo "✅ MongoDB 启动成功"
+            echo "⏳ 等待后端服务启动... ($i/10)"
+            if curl -f http://localhost:8000/health 2>/dev/null; then
+                echo "✅ 后端服务启动成功"
                 break
             else
-                echo "⏳ 等待 MongoDB 启动... ($i/10)"
-                sleep 10
+                if [ $i -eq 5 ] || [ $i -eq 10 ]; then
+                    echo "📋 检查容器状态..."
+                    docker-compose ps
+                    echo "📋 检查后端日志..."
+                    docker-compose logs --tail=20 backend
+                fi
+                sleep 15
             fi
             
             if [ $i -eq 10 ]; then
-                echo "❌ MongoDB 启动失败"
-                docker-compose logs --tail=20 mongodb
+                echo "❌ 后端服务启动失败"
+                docker-compose logs backend
                 exit 1
             fi
         done
-        
-        echo "🚀 启动其他服务..."
-        docker-compose up -d
         
         echo "✅ 部署完成！"
         SCRIPT_EOF

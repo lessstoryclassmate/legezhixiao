@@ -27,10 +27,10 @@ services:
       - "8000:8000"
       - "3000:8000"  # 开发端口映射
     environment:
-      - MONGODB_URL=mongodb://mongodb:27017/ai_novel_db
+      - MONGODB_URL=mongodb://${MONGODB_HOST:-172.16.16.2}:${MONGODB_PORT:-27017}/${MONGODB_DATABASE:-ai_novel_db}
       - DATABASE_SYSTEM_URL=mysql+aiomysql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_SYSTEMHOST}:3306/${DATABASE_SYSTEM}
       - DATABASE_NOVEL_URL=mysql+aiomysql://${DATABASE_NOVELUSER}:${DATABASE_NOVELUSER_PASSWORD}@${DATABASE_NOVELHOST}:3306/${DATABASE_NOVELDATA}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST:-172.16.16.4}:${REDIS_PORT:-6379}
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_DEFAULT_MODEL=${SILICONFLOW_DEFAULT_MODEL}
       - SILICONFLOW_API_URL=${SILICONFLOW_API_URL}
@@ -44,9 +44,6 @@ services:
       - NOVEL_GENERATION_MAX_TOKENS=${NOVEL_GENERATION_MAX_TOKENS}
       - NOVEL_GENERATION_TEMPERATURE=${NOVEL_GENERATION_TEMPERATURE}
       - NOVEL_GENERATION_TOP_P=${NOVEL_GENERATION_TOP_P}
-    depends_on:
-      mongodb:
-        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
@@ -59,50 +56,6 @@ services:
       retries: 3
       start_period: 120s
 
-  # MongoDB数据库
-  mongodb:
-    image: mongo:7.0
-    ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_DATABASE=ai_novel_db
-    volumes:
-      - mongodb_data:/data/db
-      - ./database/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
-    networks:
-      - app-network
-    restart: always
-    command: mongod --bind_ip_all --wiredTigerCacheSizeGB 0.25
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-
-  # Redis缓存 (用于会话管理)
-  redis:
-    image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
-    command: >
-      sh -c "
-        if [ -n \"${REDIS_PASSWORD}\" ]; then
-          redis-server --requirepass \"${REDIS_PASSWORD}\"
-        else
-          redis-server
-        fi
-      "
-    volumes:
-      - redis_data:/data
-    networks:
-      - app-network
-    restart: unless-stopped
-
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  mongodb_data:
-  redis_data:
