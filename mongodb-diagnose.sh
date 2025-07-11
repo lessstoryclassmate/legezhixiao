@@ -8,7 +8,7 @@ docker-compose ps mongodb 2>/dev/null || echo "容器未运行"
 
 echo
 echo "MongoDB 容器日志 (最近50行)："
-docker-compose logs mongodb --tail=50 2>/dev/null || echo "无法获取日志"
+docker-compose logs --tail=50 mongodb 2>/dev/null || echo "无法获取日志"
 
 echo
 echo "MongoDB 容器详细信息："

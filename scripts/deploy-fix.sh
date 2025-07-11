@@ -77,7 +77,7 @@ done
 if [ $elapsed -ge $timeout ]; then
     echo "❌ MongoDB 启动超时！"
     echo "MongoDB 日志："
-    docker-compose logs mongodb --tail=50
+    docker-compose logs --tail=50 mongodb
     exit 1
 fi
 
@@ -108,7 +108,7 @@ done
 if [ $elapsed -ge $timeout ]; then
     echo "❌ 后端启动超时！"
     echo "后端日志："
-    docker-compose logs backend --tail=50
+    docker-compose logs --tail=50 backend
     exit 1
 fi
 

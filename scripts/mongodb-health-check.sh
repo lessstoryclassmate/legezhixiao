@@ -45,7 +45,7 @@ for i in {1..12}; do
     if [ $i -eq 12 ]; then
         echo "❌ MongoDB 健康检查失败！"
         echo "查看 MongoDB 日志："
-        docker-compose logs mongodb --tail=50
+        docker-compose logs --tail=50 mongodb
         exit 1
     fi
 done

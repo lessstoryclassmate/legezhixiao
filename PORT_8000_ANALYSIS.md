@@ -128,7 +128,7 @@ docker port $(docker-compose ps -q backend)
 ### 3. 检查后端日志
 ```bash
 # 查看容器日志
-docker-compose logs backend --tail=50
+docker-compose logs --tail=50 backend
 
 # 查看实时日志
 docker-compose logs -f backend

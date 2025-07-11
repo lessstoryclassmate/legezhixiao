@@ -116,7 +116,7 @@ jobs:
             echo "MongoDB容器状态："
             docker-compose ps mongodb
             echo "MongoDB容器日志："
-            docker-compose logs mongodb --tail=50
+            docker-compose logs --tail=50 mongodb
             exit 1
           fi
         done
@@ -128,10 +128,10 @@ jobs:
         docker-compose ps
         
         echo "📋 检查MongoDB容器日志..."
-        docker-compose logs mongodb --tail=20
+        docker-compose logs --tail=20 mongodb
         
         echo "📋 检查后端容器日志..."
-        docker-compose logs backend --tail=20
+        docker-compose logs --tail=20 backend
         
         echo "🏥 执行后端健康检查..."
         for i in {1..12}; do
@@ -297,7 +297,7 @@ jobs:
             
             if [ $i -eq 10 ]; then
                 echo "❌ MongoDB 启动失败"
-                docker-compose logs mongodb --tail=20
+                docker-compose logs --tail=20 mongodb
                 exit 1
             fi
         done

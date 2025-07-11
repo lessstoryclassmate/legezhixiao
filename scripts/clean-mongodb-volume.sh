@@ -80,7 +80,7 @@ for i in {1..10}; do
     if [ $i -eq 10 ]; then
         echo "❌ MongoDB 启动失败"
         echo "查看 MongoDB 日志："
-        docker-compose logs mongodb --tail=20
+        docker-compose logs --tail=20 mongodb
         exit 1
     fi
 done
