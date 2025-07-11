@@ -87,7 +87,12 @@ jobs:
         NOVEL_GENERATION_TOP_P=0.9
         SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
         SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
+        MONGODB_URL=mongodb://admin:Lekairong350702@mongodb:27017/ai_novel_db
+        MONGO_INITDB_DATABASE=ai_novel_db
         EOF
+      
+    - name: 提升 MongoDB vm.max_map_count 参数
+      run: sudo sysctl -w vm.max_map_count=1677720
       
     - name: Build Docker images
       run: docker-compose build --no-cache
@@ -141,10 +146,20 @@ jobs:
             break
           else
             echo "❌ 后端健康检查失败，等待15秒后重试..."
+            if [ $i -eq 1 ] || [ $i -eq 6 ] || [ $i -eq 12 ]; then
+              echo "📋 检查系统参数 vm.max_map_count..."
+              sysctl vm.max_map_count
+              echo "📋 检查容器状态..."
+              docker-compose ps
+              echo "📋 检查MongoDB容器日志..."
+              docker-compose logs --tail=30 mongodb
+              echo "📋 检查后端容器日志..."
+              docker-compose logs --tail=30 backend
+            fi
             sleep 15
           fi
           
-          if [ $i -eq 10 ]; then
+          if [ $i -eq 12 ]; then
             echo "❌ 后端健康检查最终失败，输出所有容器日志..."
             docker-compose logs
             exit 1
@@ -276,11 +291,19 @@ jobs:
         DATABASE_NOVELDATA=novel_user_data
         DATABASE_NOVELUSER=novel_data_user
         DATABASE_NOVELUSER_PASSWORD=Lekairong350702
+        MONGODB_URL=mongodb://admin:$MONGO_PASSWORD@mongodb:27017/ai_novel_db
+        MONGO_INITDB_DATABASE=ai_novel_db
         EOF
         
         echo "🔍 验证MongoDB配置..."
         echo "MONGO_INITDB_ROOT_USERNAME: admin"
         echo "MONGO_PASSWORD: $MONGO_PASSWORD"
+        echo "MONGODB_URL: mongodb://admin:***@mongodb:27017/ai_novel_db"
+        
+        # 提升 MongoDB vm.max_map_count 参数
+        echo "⚙️  提升 MongoDB vm.max_map_count 参数..."
+        sudo sysctl -w vm.max_map_count=1677720
+        echo "✅ vm.max_map_count 已设置为 1677720"
         
         # 设置脚本权限
         chmod +x scripts/*.sh || true
