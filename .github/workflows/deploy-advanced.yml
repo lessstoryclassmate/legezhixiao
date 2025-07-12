@@ -169,49 +169,37 @@ jobs:
         docker-compose logs --tail=30 backend
         
         echo "🏥 执行后端健康检查..."
-        for i in {1..12}; do
-          echo "尝试第 $i 次后端健康检查..."
-          if curl -f http://localhost:8000/health; then
-            echo "✅ 后端健康检查成功"
-            break
-          else
-            echo "❌ 后端健康检查失败，等待15秒后重试..."
-            if [ $i -eq 1 ] || [ $i -eq 6 ] || [ $i -eq 12 ]; then
-              echo "📋 执行详细容器诊断..."
-              chmod +x scripts/ci-container-diagnostics.sh
-              bash scripts/ci-container-diagnostics.sh
-
-              
-
-              
-
-              
-              # 检查 MongoDB 容器状态
-              echo "� 检查 MongoDB 容器状态..."
-              docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" || echo "MongoDB 容器内部检查失败"
-              
-              # 检查 Redis 容器状态
-              echo "� 检查 Redis 容器状态..."
-              docker-compose exec -T redis redis-cli ping || echo "Redis 容器内部检查失败"
-              
-              # 检查环境变量
-              echo "📋 检查数据库连接环境变量..."
-              docker-compose exec -T backend env | grep -E "(MONGODB|REDIS|DATABASE)" || echo "环境变量检查失败"
-            fi
-            sleep 15
-          fi
+        chmod +x scripts/check-backend-health.sh
+        
+        # 使用专门的健康检查脚本
+        if bash scripts/check-backend-health.sh localhost 8000 12 15; then
+          echo "✅ 后端API健康检查完全通过"
+        else
+          echo "❌ 后端API健康检查失败"
           
-          if [ $i -eq 12 ]; then
-            echo "❌ 后端健康检查最终失败，输出详细诊断信息..."
-            echo "=== 容器状态 ==="
-            docker-compose ps
-            echo "=== 后端容器完整日志 ==="
-            docker-compose logs backend
-            echo "=== 前端容器日志 ==="
-            docker-compose logs frontend
-            echo "=== Docker 网络信息 ==="
-            docker network ls
-            echo "=== 检查应用网络 ==="
+          echo "=== 补充诊断信息 ==="
+          # 检查 MongoDB 容器状态
+          echo "🔍 检查 MongoDB 容器状态..."
+          docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" || echo "MongoDB 容器内部检查失败"
+          
+          # 检查 Redis 容器状态
+          echo "🔍 检查 Redis 容器状态..."
+          docker-compose exec -T redis redis-cli ping || echo "Redis 容器内部检查失败"
+          
+          # 检查环境变量
+          echo "📋 检查数据库连接环境变量..."
+          docker-compose exec -T backend env | grep -E "(MONGODB|REDIS|DATABASE)" || echo "环境变量检查失败"
+          
+          echo "=== 最终诊断信息 ==="
+          echo "=== 容器状态 ==="
+          docker-compose ps
+          echo "=== 后端容器完整日志 ==="
+          docker-compose logs backend
+          echo "=== 前端容器日志 ==="
+          docker-compose logs frontend
+          echo "=== Docker 网络信息 ==="
+          docker network ls
+          echo "=== 检查应用网络 ==="
             # 尝试多种可能的网络名
             POSSIBLE_NETWORKS=(
               "$(basename $PWD | tr '[:upper:]' '[:lower:]' | tr '-' '')_app-network"
@@ -460,34 +448,27 @@ jobs:
         
         # 检查服务健康状态
         echo "🔍 检查服务健康状态..."
-        for i in {1..10}; do
-            echo "⏳ 等待后端服务启动... ($i/10)"
-            if curl -f http://localhost:8000/health 2>/dev/null; then
-                echo "✅ 后端服务启动成功"
-                break
-            else
-                if [ $i -eq 5 ] || [ $i -eq 10 ]; then
-                    echo "📋 检查容器状态..."
-                    docker-compose -f docker-compose.production.yml ps
-                    echo "📋 检查后端日志..."
-                    docker-compose -f docker-compose.production.yml logs --tail=20 backend
-                    
-                    # 执行生产环境特定诊断
-                    if [ $i -eq 10 ]; then
-                        echo "🔍 执行生产环境诊断..."
-                        chmod +x scripts/production-diagnostics.sh
-                        NODE_ENV=production bash scripts/production-diagnostics.sh
-                    fi
-                fi
-                sleep 15
-            fi
+        chmod +x scripts/check-backend-health.sh
+        
+        # 使用专门的健康检查脚本
+        if bash scripts/check-backend-health.sh localhost 8000 10 15; then
+            echo "✅ 生产环境后端服务健康检查通过"
+        else
+            echo "❌ 生产环境后端服务健康检查失败"
+            echo "📋 检查容器状态..."
+            docker-compose -f docker-compose.production.yml ps
+            echo "📋 检查后端日志..."
+            docker-compose -f docker-compose.production.yml logs --tail=50 backend
             
-            if [ $i -eq 10 ]; then
-                echo "❌ 后端服务启动失败"
-                docker-compose -f docker-compose.production.yml logs backend
-                exit 1
-            fi
-        done
+            # 执行生产环境特定诊断
+            echo "🔍 执行生产环境诊断..."
+            chmod +x scripts/production-diagnostics.sh
+            NODE_ENV=production bash scripts/production-diagnostics.sh
+            
+            echo "❌ 后端服务启动失败"
+            docker-compose -f docker-compose.production.yml logs backend
+            exit 1
+        fi
         
         echo "✅ 部署完成！"
         SCRIPT_EOF
