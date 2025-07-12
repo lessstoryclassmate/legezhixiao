@@ -25,22 +25,61 @@ echo "=== Docker 网络环境检查 ==="
 if docker network ls >/dev/null 2>&1; then
   echo "Docker 环境可用"
   
-  # 检查是否有 app-network
-  PROJECT_PREFIX=$(basename $PWD 2>/dev/null | tr '[:upper:]' '[:lower:]')
-  NETWORK_NAME="${PROJECT_PREFIX}_app-network"
-  
-  if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
-    echo "✅ 找到 Docker 网络: $NETWORK_NAME"
+  # 使用智能网络检测脚本
+  if [ -f "scripts/detect-network.sh" ]; then
+    echo "🔍 执行智能网络检测..."
+    chmod +x scripts/detect-network.sh
     
-    # 显示网络中的容器服务
-    CONTAINERS=$(docker network inspect "$NETWORK_NAME" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
-    if [ -n "$CONTAINERS" ]; then
-      echo "网络中的容器服务:"
-      echo "$CONTAINERS" | sed 's/^/  - /'
-      echo "✅ 容器服务使用 Docker 网络进行通信"
+    if bash scripts/detect-network.sh; then
+      echo "✅ 智能网络检测成功"
+      
+      # 加载检测结果
+      if [ -f "/tmp/detected_network.env" ]; then
+        source /tmp/detected_network.env
+        echo "检测到的网络名: $DETECTED_NETWORK_NAME"
+        
+        # 显示网络详情
+        if docker network inspect "$DETECTED_NETWORK_NAME" >/dev/null 2>&1; then
+          echo "✅ 网络验证成功"
+          
+          # 显示网络中的容器服务
+          CONTAINERS=$(docker network inspect "$DETECTED_NETWORK_NAME" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
+          if [ -n "$CONTAINERS" ]; then
+            echo "网络中的容器服务:"
+            echo "$CONTAINERS" | sed 's/^/  - /'
+            echo "✅ 容器服务使用 Docker 网络进行通信"
+          fi
+        else
+          echo "❌ 网络验证失败"
+        fi
+      else
+        echo "❌ 网络检测结果文件不存在"
+      fi
+    else
+      echo "❌ 智能网络检测失败，使用传统方法..."
+      
+      # 传统检测方法（后备方案）
+      PROJECT_PREFIX=$(basename $PWD 2>/dev/null | tr '[:upper:]' '[:lower:]')
+      NETWORK_NAME="${PROJECT_PREFIX}_app-network"
+      
+      if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+        echo "✅ 找到 Docker 网络（传统方法）: $NETWORK_NAME"
+      else
+        echo "⚠️  未找到 Docker 网络: $NETWORK_NAME"
+      fi
     fi
   else
-    echo "⚠️  未找到 Docker 网络: $NETWORK_NAME"
+    echo "❌ 智能网络检测脚本不存在，使用传统方法..."
+    
+    # 传统检测方法
+    PROJECT_PREFIX=$(basename $PWD 2>/dev/null | tr '[:upper:]' '[:lower:]')
+    NETWORK_NAME="${PROJECT_PREFIX}_app-network"
+    
+    if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+      echo "✅ 找到 Docker 网络（传统方法）: $NETWORK_NAME"
+    else
+      echo "⚠️  未找到 Docker 网络: $NETWORK_NAME"
+    fi
   fi
 else
   echo "⚠️  非 Docker 环境或 Docker 不可用"

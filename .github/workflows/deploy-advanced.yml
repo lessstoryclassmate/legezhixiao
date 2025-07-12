@@ -123,29 +123,16 @@ jobs:
         echo "=== 当前网络列表 ==="
         docker network ls
         
-        echo "=== 验证 app-network 网络 ==="
-        PROJECT_PREFIX=$(basename $PWD | tr '[:upper:]' '[:lower:]')
-        NETWORK_NAME="${PROJECT_PREFIX}_app-network"
-        
-        if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
-          echo "✅ 找到网络: $NETWORK_NAME"
-          echo "=== 网络详情 ==="
-          docker network inspect "$NETWORK_NAME" | jq '.[0] | {Name, Driver, Scope, Containers}'
-          
-          echo "=== 验证容器网络连接 ==="
-          # 检查容器是否正确连接到网络
-          CONNECTED_CONTAINERS=$(docker network inspect "$NETWORK_NAME" | jq -r '.[0].Containers | keys[]' 2>/dev/null | wc -l)
-          echo "已连接容器数量: $CONNECTED_CONTAINERS"
-          
-          if [ "$CONNECTED_CONTAINERS" -ge 2 ]; then
-            echo "✅ 容器网络连接正常"
-          else
-            echo "⚠️ 连接的容器数量较少，请检查服务启动状态"
-          fi
+        echo "=== 智能网络检测 ==="
+        # 使用智能网络检测脚本
+        chmod +x scripts/detect-network.sh
+        if bash scripts/detect-network.sh; then
+          # 加载检测到的网络名
+          source /tmp/detected_network.env
+          NETWORK_NAME="$DETECTED_NETWORK_NAME"
+          echo "✅ 使用检测到的网络: $NETWORK_NAME"
         else
-          echo "❌ 未找到网络: $NETWORK_NAME"
-          echo "尝试查找其他可能的网络名称..."
-          docker network ls | grep app
+          echo "❌ 网络检测失败"
           exit 1
         fi
         
@@ -225,19 +212,32 @@ jobs:
             echo "=== Docker 网络信息 ==="
             docker network ls
             echo "=== 检查应用网络 ==="
-            PROJECT_PREFIX=$(basename $PWD | tr '[:upper:]' '[:lower:]')
-            NETWORK_NAME="${PROJECT_PREFIX}_app-network"
+            # 尝试多种可能的网络名
+            POSSIBLE_NETWORKS=(
+              "$(basename $PWD | tr '[:upper:]' '[:lower:]' | tr '-' '')_app-network"
+              "$(basename $PWD | tr '[:upper:]' '[:lower:]')_app-network"
+              "$(basename $PWD)_app-network"
+              "legezhixiao_app-network"
+              "app-network"
+            )
             
-            if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
-              echo "✅ $NETWORK_NAME 网络存在"
-              
+            FOUND_NETWORK=""
+            for net in "${POSSIBLE_NETWORKS[@]}"; do
+              if docker network inspect "$net" >/dev/null 2>&1; then
+                FOUND_NETWORK="$net"
+                echo "✅ 找到网络: $net"
+                break
+              fi
+            done
+            
+            if [ -n "$FOUND_NETWORK" ]; then
               # 显示网络详细信息
               echo "=== 网络配置详情 ==="
-              docker network inspect "$NETWORK_NAME" | jq '.[0] | {Name, Driver, Scope, IPAM, Containers}' 2>/dev/null || docker network inspect "$NETWORK_NAME" | head -20
+              docker network inspect "$FOUND_NETWORK" | jq '.[0] | {Name, Driver, Scope, IPAM, Containers}' 2>/dev/null || docker network inspect "$FOUND_NETWORK" | head -20
               
               # 检查容器网络连接
               echo "=== 容器网络连接状态 ==="
-              CONNECTED_CONTAINERS=$(docker network inspect "$NETWORK_NAME" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
+              CONNECTED_CONTAINERS=$(docker network inspect "$FOUND_NETWORK" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
               if [ -n "$CONNECTED_CONTAINERS" ]; then
                 echo "已连接的容器:"
                 echo "$CONNECTED_CONTAINERS" | sed 's/^/  - /'
@@ -245,7 +245,7 @@ jobs:
                 echo "⚠️ 暂无容器连接到网络"
               fi
             else
-              echo "❌ 未找到网络: $NETWORK_NAME"
+              echo "❌ 未找到任何应用网络"
               echo "=== 可用网络列表 ==="
               docker network ls
               echo "=== 尝试查找相关网络 ==="
