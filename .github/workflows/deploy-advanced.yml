@@ -42,7 +42,17 @@ jobs:
     - name: Install frontend dependencies
       run: |
         cd frontend
-        npm ci
+        echo "📦 尝试使用 npm ci 安装依赖..."
+        if npm ci; then
+          echo "✅ npm ci 安装成功"
+        else
+          echo "❌ npm ci 失败，尝试使用 npm install..."
+          # 清理可能的损坏状态
+          rm -rf node_modules package-lock.json
+          # 使用 npm install 重新安装和生成 lock 文件
+          npm install
+          echo "✅ npm install 安装成功"
+        fi
         
     - name: Run frontend linting
       run: |
