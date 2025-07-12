@@ -8,7 +8,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:80"
-      - "8080:80"  # 监听端口映射
     environment:
       - VITE_API_BASE_URL=http://backend:8000
       - VITE_SILICONFLOW_API_URL=${SILICONFLOW_API_URL}
@@ -25,7 +24,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-      - "3000:8000"  # 开发端口映射
     environment:
       # 生产环境使用云数据库服务
       - MONGODB_URL=mongodb://${MONGODB_HOST}:${MONGODB_PORT}/${MONGODB_DATABASE}

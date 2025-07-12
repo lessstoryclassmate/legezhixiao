@@ -35,7 +35,7 @@ jobs:
         REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
-        # 上传简化的部署脚本
+        # 上传快速部署脚本
         scp scripts/quick-deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
         
         # 执行部署
@@ -44,7 +44,8 @@ jobs:
            export SILICONFLOW_API_KEY=\"$SILICONFLOW_API_KEY\" && \
            export JWT_SECRET_KEY=\"$JWT_SECRET_KEY\" && \
            export REDIS_PASSWORD=\"$REDIS_PASSWORD\" && \
-           export PERSONAL_ACCESS_TOKEN=\"$PERSONAL_ACCESS_TOKEN\" && \
+           export DATABASE_PASSWORD=\"\${DATABASE_PASSWORD:-defaultpass123}\" && \
+           export DATABASE_NOVELUSER_PASSWORD=\"\${DATABASE_NOVELUSER_PASSWORD:-novelpass123}\" && \
            export GITHUB_REPOSITORY=\"${{ github.repository }}\" && \
            chmod +x /tmp/quick-deploy.sh && \
            bash /tmp/quick-deploy.sh"
