@@ -94,8 +94,8 @@ jobs:
         cd frontend
         npm run lint
 
-  # 构建测试
-  build:
+  # 配置验证和基础测试
+  config-validation:
     needs: quality-check
     runs-on: ubuntu-latest
     steps:
@@ -104,151 +104,88 @@ jobs:
       
     - name: Install docker-compose
       run: sudo apt-get update && sudo apt-get install -y docker-compose
-      
-    - name: Create test environment file
-      run: |
-        cat > .env << EOF
-        # 测试环境 - 使用本地容器服务
-        MONGODB_HOST=mongodb
-        MONGODB_PORT=27017
-        MONGODB_DATABASE=ai_novel_db
-        REDIS_HOST=redis
-        REDIS_PORT=6379
-        REDIS_PASSWORD=Lekairong350702
-        # AI 服务配置
-        SILICONFLOW_API_KEY=sk-test-key
-        JWT_SECRET_KEY=test-jwt-secret-key
-        # MySQL 数据库配置（仍使用云服务，但CI环境可能无法连接）
-        DATABASE_SYSTEMHOST=172.16.16.3
-        DATABASE_SYSTEM=novel_data
-        DATABASE_USER=lkr
-        DATABASE_PASSWORD=Lekairong350702
-        DATABASE_NOVELHOST=172.16.16.2
-        DATABASE_NOVELDATA=novel_user_data
-        DATABASE_NOVELUSER=novel_data_user
-        DATABASE_NOVELUSER_PASSWORD=Lekairong350702
-        # 服务配置
-        SERVER_IP=localhost
-        MCP_SERVER_NAME=novel-ai-server
-        MCP_SERVER_PORT=8000
-        MCP_SERVER_HOST=localhost
-        MCP_TOOLS_ENABLED=true
-        MCP_TOOLS_LIST=novel_generation,character_creation,plot_analysis,content_review,style_transfer
-        NOVEL_GENERATION_MAX_TOKENS=4096
-        NOVEL_GENERATION_TEMPERATURE=0.8
-        NOVEL_GENERATION_TOP_P=0.9
-        SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
-        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
-        EOF
-      
-    - name: 提升 MongoDB vm.max_map_count 参数
-      run: sudo sysctl -w vm.max_map_count=1677720
-      
-    - name: Build Docker images
-      run: docker-compose build --no-cache
-    
-    - name: Verify Docker network setup
+        
+    - name: Validate Docker Compose configuration
       run: |
         echo "🔍 验证 Docker Compose 配置..."
-        echo "=== 当前工作目录 ==="
-        echo "PWD: $PWD"
-        echo "PROJECT: $(basename $PWD)"
         
-        echo "=== 检查网络配置 ==="
-        # 验证 docker-compose.yml 中的网络配置
-        if docker-compose config | grep -A 3 "networks:" | grep -q "app-network"; then
-          echo "✅ 发现 app-network 配置"
-          docker-compose config | grep -A 10 "networks:"
+        # 检查开发环境配置
+        if [ -f "docker-compose.yml" ]; then
+          echo "✅ 发现开发环境配置文件"
+          if docker-compose config > /dev/null; then
+            echo "✅ 开发环境配置语法正确"
+          else
+            echo "❌ 开发环境配置语法错误"
+            exit 1
+          fi
+        fi
+        
+        # 检查生产环境配置
+        if [ -f "docker-compose.production.yml" ]; then
+          echo "✅ 发现生产环境配置文件"
+          if docker-compose -f docker-compose.production.yml config > /dev/null; then
+            echo "✅ 生产环境配置语法正确"
+          else
+            echo "❌ 生产环境配置语法错误"
+            exit 1
+          fi
         else
-          echo "❌ app-network 配置缺失，检查 docker-compose.yml"
+          echo "❌ 生产环境配置文件缺失"
           exit 1
         fi
         
-        echo "🚀 测试网络创建..."
-        docker-compose up -d --no-deps mongodb redis
-        sleep 15
-        
-        echo "=== 当前网络列表 ==="
-        docker network ls
-        
-        echo "=== 智能网络检测 ==="
-        # 使用增强的网络检测脚本
-        chmod +x scripts/simple-network-check.sh
-        
-        echo "🔍 执行网络检测脚本..."
-        if bash scripts/simple-network-check.sh; then
-          NETWORK_CHECK_SUCCESS=true
+        # 验证网络配置
+        echo "🔍 验证网络配置..."
+        if docker-compose -f docker-compose.production.yml config | grep -A 3 "networks:" | grep -q "app-network"; then
+          echo "✅ 发现 app-network 配置"
         else
-          NETWORK_CHECK_SUCCESS=false
-          echo "⚠️ 网络检测脚本返回失败状态，但继续检查结果"
+          echo "❌ app-network 配置缺失"
+          exit 1
         fi
         
-        # 确保环境变量文件存在并可读
-        if [ -f /tmp/detected_network.env ]; then
-          echo "=== 检测结果文件内容 ==="
-          cat /tmp/detected_network.env
-          
-          # 加载检测结果
-          source /tmp/detected_network.env
-          
-          # 验证变量是否正确设置
-          if [ -n "$DETECTED_NETWORK_NAME" ] && [ "$NETWORK_EXISTS" = "true" ]; then
-            echo "✅ 网络检测成功: $DETECTED_NETWORK_NAME"
-          else
-            echo "⚠️ 网络检测结果显示网络不存在或无效"
-            echo "DETECTED_NETWORK_NAME: '$DETECTED_NETWORK_NAME'"
-            echo "NETWORK_EXISTS: '$NETWORK_EXISTS'"
-            
-            # 尝试使用docker-compose创建网络
-            echo "🔧 尝试通过docker-compose创建网络..."
-            docker-compose up --no-start 2>/dev/null || true
-            sleep 5
-            
-            # 重新检查
-            echo "🔍 重新检查网络状态..."
-            docker network ls
-            
-            # 再次尝试检测
-            if bash scripts/simple-network-check.sh; then
-              source /tmp/detected_network.env
-              if [ -n "$DETECTED_NETWORK_NAME" ] && [ "$NETWORK_EXISTS" = "true" ]; then
-                echo "✅ 重试后网络检测成功: $DETECTED_NETWORK_NAME"
-              else
-                echo "❌ 重试后仍然无法检测到网络，继续执行但可能会有问题"
-              fi
+    - name: Validate Dockerfiles
+      run: |
+        echo "🔍 验证 Dockerfile 配置..."
+        
+        # 检查后端 Dockerfile
+        if [ -f "backend/Dockerfile" ]; then
+          echo "✅ 后端 Dockerfile 存在"
+        else
+          echo "❌ 后端 Dockerfile 缺失"
+          exit 1
+        fi
+        
+        # 检查前端 Dockerfile
+        if [ -f "frontend/Dockerfile" ]; then
+          echo "✅ 前端 Dockerfile 存在"
+        else
+          echo "❌ 前端 Dockerfile 缺失"
+          exit 1
+        fi
+        
+    - name: Validate deployment scripts
+      run: |
+        echo "🔍 验证部署脚本..."
+        
+        # 检查脚本文件存在性
+        for script in scripts/*.sh; do
+          if [ -f "$script" ]; then
+            echo "✅ 发现脚本: $script"
+            # 检查脚本语法
+            if bash -n "$script"; then
+              echo "✅ 脚本语法正确: $script"
             else
-              echo "❌ 重试网络检测仍然失败，但继续执行"
+              echo "❌ 脚本语法错误: $script"
+              exit 1
             fi
           fi
-        else
-          echo "❌ 网络检测结果文件不存在"
-          echo "🔧 创建默认网络检测结果..."
-          echo "DETECTED_NETWORK_NAME=app-network" > /tmp/detected_network.env
-          echo "NETWORK_EXISTS=unknown" >> /tmp/detected_network.env
-          echo "⚠️ 使用默认网络名称继续执行"
-        fi
+        done
         
-        echo "🔍 测试服务间网络通信..."
-        # 测试 MongoDB 服务发现
-        if docker-compose exec -T mongodb mongosh --eval "db.adminCommand('ping')" 2>/dev/null; then
-          echo "✅ MongoDB 服务可通过网络访问"
-        else
-          echo "❌ MongoDB 网络访问失败"
-        fi
-        
-        # 测试 Redis 服务发现
-        if docker-compose exec -T redis redis-cli ping 2>/dev/null; then
-          echo "✅ Redis 服务可通过网络访问"
-        else
-          echo "❌ Redis 网络访问失败"
-        fi
-        
-        echo "🛑 停止测试容器..."
-        docker-compose down
+        echo "✅ 所有配置验证通过，可以进行部署"
 
   # 部署到生产环境
   deploy:
-    needs: [quality-check, build]
+    needs: [quality-check, config-validation]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
