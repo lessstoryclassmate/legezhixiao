@@ -105,8 +105,11 @@ jobs:
     - name: Verify Docker network setup
       run: |
         echo "🔍 验证 Docker Compose 配置..."
-        echo "=== 检查网络配置 ==="
+        echo "=== 当前工作目录 ==="
+        echo "PWD: $PWD"
+        echo "PROJECT: $(basename $PWD)"
         
+        echo "=== 检查网络配置 ==="
         # 验证 docker-compose.yml 中的网络配置
         if docker-compose config | grep -A 3 "networks:" | grep -q "app-network"; then
           echo "✅ 发现 app-network 配置"
@@ -123,14 +126,13 @@ jobs:
         echo "=== 当前网络列表 ==="
         docker network ls
         
-        echo "=== 智能网络检测 ==="
-        # 使用智能网络检测脚本
-        chmod +x scripts/detect-network.sh
-        if bash scripts/detect-network.sh; then
-          # 加载检测到的网络名
+        echo "=== 简化网络检测 ==="
+        # 使用简化的网络检测脚本
+        chmod +x scripts/simple-network-check.sh
+        if bash scripts/simple-network-check.sh; then
+          # 加载检测结果
           source /tmp/detected_network.env
-          NETWORK_NAME="$DETECTED_NETWORK_NAME"
-          echo "✅ 使用检测到的网络: $NETWORK_NAME"
+          echo "✅ 网络检测成功: $DETECTED_NETWORK_NAME"
         else
           echo "❌ 网络检测失败"
           exit 1
@@ -200,45 +202,32 @@ jobs:
           echo "=== Docker 网络信息 ==="
           docker network ls
           echo "=== 检查应用网络 ==="
-            # 尝试多种可能的网络名
-            POSSIBLE_NETWORKS=(
-              "$(basename $PWD | tr '[:upper:]' '[:lower:]' | tr '-' '')_app-network"
-              "$(basename $PWD | tr '[:upper:]' '[:lower:]')_app-network"
-              "$(basename $PWD)_app-network"
-              "legezhixiao_app-network"
-              "app-network"
-            )
+          # 直接检查 app-network
+          NETWORK_NAME="app-network"
+          
+          if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+            echo "✅ 找到网络: $NETWORK_NAME"
             
-            FOUND_NETWORK=""
-            for net in "${POSSIBLE_NETWORKS[@]}"; do
-              if docker network inspect "$net" >/dev/null 2>&1; then
-                FOUND_NETWORK="$net"
-                echo "✅ 找到网络: $net"
-                break
-              fi
-            done
+            # 显示网络详细信息
+            echo "=== 网络配置详情 ==="
+            docker network inspect "$NETWORK_NAME" | jq '.[0] | {Name, Driver, Scope, IPAM, Containers}' 2>/dev/null || docker network inspect "$NETWORK_NAME" | head -20
             
-            if [ -n "$FOUND_NETWORK" ]; then
-              # 显示网络详细信息
-              echo "=== 网络配置详情 ==="
-              docker network inspect "$FOUND_NETWORK" | jq '.[0] | {Name, Driver, Scope, IPAM, Containers}' 2>/dev/null || docker network inspect "$FOUND_NETWORK" | head -20
-              
-              # 检查容器网络连接
-              echo "=== 容器网络连接状态 ==="
-              CONNECTED_CONTAINERS=$(docker network inspect "$FOUND_NETWORK" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
-              if [ -n "$CONNECTED_CONTAINERS" ]; then
-                echo "已连接的容器:"
-                echo "$CONNECTED_CONTAINERS" | sed 's/^/  - /'
-              else
-                echo "⚠️ 暂无容器连接到网络"
-              fi
+            # 检查容器网络连接
+            echo "=== 容器网络连接状态 ==="
+            CONNECTED_CONTAINERS=$(docker network inspect "$NETWORK_NAME" | jq -r '.[0].Containers | to_entries[] | .value.Name' 2>/dev/null)
+            if [ -n "$CONNECTED_CONTAINERS" ]; then
+              echo "已连接的容器:"
+              echo "$CONNECTED_CONTAINERS" | sed 's/^/  - /'
             else
-              echo "❌ 未找到任何应用网络"
-              echo "=== 可用网络列表 ==="
-              docker network ls
-              echo "=== 尝试查找相关网络 ==="
-              docker network ls | grep -E "(app|legezhixiao)" || echo "未找到相关网络"
+              echo "⚠️ 暂无容器连接到网络"
             fi
+          else
+            echo "❌ 未找到网络: $NETWORK_NAME"
+            echo "=== 可用网络列表 ==="
+            docker network ls
+            echo "=== 尝试查找相关网络 ==="
+            docker network ls | grep -E "(app|legezhixiao)" || echo "未找到相关网络"
+          fi
             echo "=== 检查容器网络连接 ==="
             docker-compose exec -T backend ip route || echo "容器路由检查失败"
             exit 1
