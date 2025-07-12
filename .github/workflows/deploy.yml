@@ -32,9 +32,17 @@ jobs:
         echo "🔍 检查 Docker Hub 连接性..."
         if curl -s --connect-timeout 10 https://registry-1.docker.io/v2/ > /dev/null; then
           echo "✅ Docker Hub 可访问"
+          echo "DOCKER_HUB_ACCESSIBLE=true" >> $GITHUB_ENV
         else
           echo "⚠️  Docker Hub 访问受限，部署脚本将配置镜像加速器"
+          echo "DOCKER_HUB_ACCESSIBLE=false" >> $GITHUB_ENV
         fi
+        
+        # 检查具体镜像可用性
+        echo "🔍 检查关键镜像可用性..."
+        docker manifest inspect node:18-alpine > /dev/null 2>&1 && echo "✅ node:18-alpine 可用" || echo "❌ node:18-alpine 不可用"
+        docker manifest inspect python:3.11-slim > /dev/null 2>&1 && echo "✅ python:3.11-slim 可用" || echo "❌ python:3.11-slim 不可用"
+        docker manifest inspect nginx:alpine > /dev/null 2>&1 && echo "✅ nginx:alpine 可用" || echo "❌ nginx:alpine 不可用"
         
     - name: Deploy to production server
       env:
@@ -58,11 +66,21 @@ jobs:
            export DATABASE_PASSWORD=\"\${DATABASE_PASSWORD:-Lekairong350702}\" && \
            export DATABASE_NOVELUSER_PASSWORD=\"\${DATABASE_NOVELUSER_PASSWORD:-Lekairong350702}\" && \
            export GITHUB_REPOSITORY=\"${{ github.repository }}\" && \
+           export DOCKER_HUB_ACCESSIBLE=\"$DOCKER_HUB_ACCESSIBLE\" && \
            chmod +x /tmp/quick-deploy.sh /tmp/check-docker-images.sh && \
            echo '🔍 预检查 Docker 镜像可用性...' && \
            /tmp/check-docker-images.sh || echo '⚠️  镜像检查发现问题，部署脚本将尝试解决' && \
            echo '🚀 开始部署...' && \
-           /tmp/quick-deploy.sh"
+           timeout 1800 /tmp/quick-deploy.sh || { \
+             echo '❌ 部署超时或失败'; \
+             echo '📋 检查 Docker 服务状态:'; \
+             sudo systemctl status docker || true; \
+             echo '📋 检查容器状态:'; \
+             sudo docker ps -a || true; \
+             echo '📋 检查部署日志:'; \
+             tail -50 /var/log/syslog || true; \
+             exit 1; \
+           }"
 
     - name: Verify deployment
       run: |

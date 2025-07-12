@@ -16,13 +16,15 @@ echo "🐳 配置Docker镜像加速器和网络优化..."
 sudo mkdir -p /etc/docker
 
 # 检测地区并配置相应的镜像源
-if curl -s --connect-timeout 3 registry-1.docker.io > /dev/null 2>&1; then
-    echo "✅ Docker Hub 可直接访问"
-    # 仍然配置加速器以提高速度
-    MIRRORS='"https://registry.docker-cn.com", "https://docker.mirrors.ustc.edu.cn"'
+echo "🔍 检测 Docker Hub 连接性..."
+if curl -s --connect-timeout 5 --max-time 10 https://registry-1.docker.io/v2/ > /dev/null 2>&1; then
+    echo "✅ Docker Hub 可直接访问，配置加速器以提高速度"
+    # 即使可访问也配置加速器以提高速度和稳定性
+    MIRRORS='"https://docker.mirrors.ustc.edu.cn", "https://registry.docker-cn.com", "https://hub-mirror.c.163.com"'
 else
-    echo "⚠️  Docker Hub 访问受限，配置国内镜像源..."
-    MIRRORS='"https://docker.mirrors.ustc.edu.cn", "https://hub-mirror.c.163.com", "https://registry.cn-hangzhou.aliyuncs.com", "https://registry.docker-cn.com"'
+    echo "⚠️  Docker Hub 访问受限，配置多个镜像源..."
+    # 配置多个国内镜像源，提高成功率
+    MIRRORS='"https://docker.mirrors.ustc.edu.cn", "https://hub-mirror.c.163.com", "https://registry.cn-hangzhou.aliyuncs.com", "https://registry.docker-cn.com", "https://dockerproxy.com", "https://mirror.baidubce.com"'
 fi
 
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
@@ -155,27 +157,30 @@ BASE_IMAGES=(
 # 拉取基础镜像的函数
 pull_image_with_retry() {
     local image=$1
-    local max_attempts=5
+    local max_attempts=3
     
     echo "🔄 拉取镜像: $image"
     
     for attempt in $(seq 1 $max_attempts); do
         echo "   尝试 $attempt/$max_attempts..."
         
-        if sudo docker pull "$image"; then
+        if timeout 300 sudo docker pull "$image"; then
             echo "   ✅ $image 拉取成功"
             return 0
         else
             echo "   ❌ $image 拉取失败"
             if [ $attempt -lt $max_attempts ]; then
-                local wait_time=$((attempt * 10))
+                local wait_time=$((attempt * 5))
                 echo "   ⏳ 等待 ${wait_time}s 后重试..."
                 sleep $wait_time
+                
+                # 清理可能的残留下载
+                sudo docker system prune -f > /dev/null 2>&1 || true
             fi
         fi
     done
     
-    echo "   ⚠️  $image 拉取失败，尝试替代方案..."
+    echo "   ❌ $image 拉取失败"
     return 1
 }
 
@@ -187,23 +192,14 @@ for image in "${BASE_IMAGES[@]}"; do
     fi
 done
 
-# 如果有镜像拉取失败，尝试替代方案
+# 如果有镜像拉取失败，尝试直接使用 docker-compose 构建
 if [ ${#failed_images[@]} -gt 0 ]; then
     echo "⚠️  以下镜像拉取失败: ${failed_images[*]}"
-    echo "🔄 尝试使用 docker-compose 拉取..."
-    
-    # 使用 docker-compose 拉取 (可能使用不同的策略)
-    if ! sudo docker-compose -f docker-compose.production.yml pull --ignore-pull-failures; then
-        echo "❌ docker-compose 拉取也失败"
-        echo "🔧 尝试构建本地镜像..."
-        # 继续执行，让 docker-compose build 处理
-    else
-        echo "✅ docker-compose 拉取成功"
-    fi
+    echo "🔄 将在构建阶段处理镜像问题..."
 else
     echo "✅ 所有基础镜像拉取成功"
     # 现在拉取应用镜像
-    sudo docker-compose -f docker-compose.production.yml pull || echo "⚠️  应用镜像拉取失败，将使用构建模式"
+    sudo docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || echo "⚠️  应用镜像拉取失败，将使用构建模式"
 fi
 
 # 7. 构建并启动服务 (增强错误处理)
