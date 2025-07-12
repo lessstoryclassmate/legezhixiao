@@ -126,15 +126,33 @@ jobs:
         echo "=== 当前网络列表 ==="
         docker network ls
         
-        echo "=== 简化网络检测 ==="
-        # 使用简化的网络检测脚本
+        echo "=== 智能网络检测 ==="
+        # 使用增强的网络检测脚本
         chmod +x scripts/simple-network-check.sh
         if bash scripts/simple-network-check.sh; then
-          # 加载检测结果
-          source /tmp/detected_network.env
-          echo "✅ 网络检测成功: $DETECTED_NETWORK_NAME"
+          # 确保环境变量文件存在并可读
+          if [ -f /tmp/detected_network.env ]; then
+            echo "=== 检测结果文件内容 ==="
+            cat /tmp/detected_network.env
+            
+            # 加载检测结果
+            source /tmp/detected_network.env
+            
+            # 验证变量是否正确设置
+            if [ -n "$DETECTED_NETWORK_NAME" ] && [ "$NETWORK_EXISTS" = "true" ]; then
+              echo "✅ 网络检测成功: $DETECTED_NETWORK_NAME"
+            else
+              echo "❌ 网络检测结果无效"
+              echo "DETECTED_NETWORK_NAME: '$DETECTED_NETWORK_NAME'"
+              echo "NETWORK_EXISTS: '$NETWORK_EXISTS'"
+              exit 1
+            fi
+          else
+            echo "❌ 网络检测结果文件不存在"
+            exit 1
+          fi
         else
-          echo "❌ 网络检测失败"
+          echo "❌ 网络检测脚本执行失败"
           exit 1
         fi
         
@@ -202,10 +220,11 @@ jobs:
           echo "=== Docker 网络信息 ==="
           docker network ls
           echo "=== 检查应用网络 ==="
-          # 直接检查 app-network
-          NETWORK_NAME="app-network"
+          # 使用检测到的网络名
+          source /tmp/detected_network.env
+          NETWORK_NAME="$DETECTED_NETWORK_NAME"
           
-          if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+          if [ -n "$NETWORK_NAME" ] && docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
             echo "✅ 找到网络: $NETWORK_NAME"
             
             # 显示网络详细信息

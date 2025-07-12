@@ -1,19 +1,33 @@
 #!/bin/bash
 
-# 简单网络检测脚本 - 直接检查 app-network
-# 避免复杂的目录名和前缀逻辑
+# 智能网络检测脚本 - 支持多种网络名模式
+# 解决 Docker Compose 项目前缀导致的网络名不一致问题
 
 set -e
 
-echo "🔍 简单网络检测开始..."
+echo "🔍 智能网络检测开始..."
 
-# 固定使用 app-network（与 docker-compose.yml 一致）
-NETWORK_NAME="app-network"
+# 添加调试输出
+echo "=== 调试信息 ==="
+echo "当前所有网络:"
+docker network ls
 
-echo "📋 检查目标网络: $NETWORK_NAME"
+# 尝试检测包含 app-network 的网络
+echo "📋 查找包含 'app-network' 的网络..."
+NETWORK_NAME=$(docker network ls --filter name=app-network --format "{{.Name}}" | head -n1)
 
-# 检查网络是否存在
-if docker network ls --format "{{.Name}}" | grep -q "^${NETWORK_NAME}$"; then
+if [ -z "$NETWORK_NAME" ]; then
+    # 如果没找到，尝试直接查找 app-network
+    echo "📋 尝试查找精确的 'app-network'..."
+    if docker network ls --format "{{.Name}}" | grep -q "^app-network$"; then
+        NETWORK_NAME="app-network"
+    fi
+fi
+
+echo "检测到的网络名: '$NETWORK_NAME'"
+
+# 检查是否找到网络
+if [ -n "$NETWORK_NAME" ]; then
     echo "✅ 网络 '$NETWORK_NAME' 存在"
     
     # 获取网络详细信息
@@ -36,16 +50,16 @@ if docker network ls --format "{{.Name}}" | grep -q "^${NETWORK_NAME}$"; then
     echo "DETECTED_NETWORK_NAME=$NETWORK_NAME" > /tmp/detected_network.env
     echo "NETWORK_EXISTS=true" >> /tmp/detected_network.env
     
-    echo "✅ 网络检测完成"
+    echo "✅ 网络检测完成: $NETWORK_NAME"
     exit 0
 else
-    echo "❌ 网络 '$NETWORK_NAME' 不存在"
+    echo "❌ 未找到任何包含 'app-network' 的网络"
     
     echo "=== 当前所有网络 ==="
     docker network ls
     
     echo "=== 寻找相关网络 ==="
-    docker network ls | grep -i app || echo "未找到包含 'app' 的网络"
+    docker network ls | grep -E "(app|legezhixiao)" || echo "未找到相关网络"
     
     # 导出失败状态
     echo "DETECTED_NETWORK_NAME=" > /tmp/detected_network.env
