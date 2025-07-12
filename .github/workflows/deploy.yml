@@ -2,8 +2,6 @@ name: Deploy AI Novel Editor (Clone Mode)
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -12,53 +10,10 @@ env:
   DEPLOY_DIR: /opt/ai-novel-editor
 
 jobs:
-  # 快速配置验证
-  validate-config:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Validate Docker Compose files
-      run: |
-        echo "🔍 验证 Docker Compose 配置..."
-        
-        # 检查生产环境配置
-        if [ -f "docker-compose.production.yml" ]; then
-          echo "✅ 发现生产环境配置文件"
-          # 基本语法检查，不需要完整验证
-          if grep -q "version:" docker-compose.production.yml; then
-            echo "✅ 配置文件格式正确"
-          else
-            echo "❌ 配置文件格式错误"
-            exit 1
-          fi
-        else
-          echo "❌ 生产环境配置文件缺失"
-          exit 1
-        fi
-        
-    - name: Validate deployment scripts
-      run: |
-        echo "🔍 验证部署脚本..."
-        
-        # 检查关键脚本文件存在性
-        for script in scripts/setup-docker-mirrors.sh scripts/fix-docker-network.sh; do
-          if [ -f "$script" ]; then
-            echo "✅ 发现脚本: $script"
-          else
-            echo "❌ 缺失脚本: $script"
-            exit 1
-          fi
-        done
-        
-        echo "✅ 配置验证通过，可以进行部署"
-
-  # 克隆模式部署
+  # 快速部署 (克隆模式)
   deploy:
-    needs: validate-config
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
@@ -72,7 +27,7 @@ jobs:
     - name: Add server to known hosts
       run: ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
         
-    - name: Deploy to production server (Clone Mode)
+    - name: Deploy to production server
       env:
         SERVER_IP: ${{ secrets.SERVER_IP }}
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
@@ -80,151 +35,10 @@ jobs:
         REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
       run: |
-        # 创建简化的克隆模式部署脚本
-        cat > clone_deploy.sh << 'SCRIPT_EOF'
-        #!/bin/bash
-        set -e
+        # 上传简化的部署脚本
+        scp scripts/quick-deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
         
-        echo "🚀 开始克隆模式部署..."
-        
-        # 快速检查和配置 Docker 环境
-        echo "🔍 检查 Docker 环境..."
-        
-        if ! command -v docker &> /dev/null; then
-          echo "❌ Docker 未安装，开始快速安装..."
-          curl -fsSL https://get.docker.com | sh
-          sudo usermod -aG docker $USER
-          sudo systemctl start docker
-          sudo systemctl enable docker
-        fi
-        
-        if ! command -v docker-compose &> /dev/null; then
-          echo "❌ Docker Compose 未安装，开始安装..."
-          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-        fi
-        
-        # 快速配置镜像加速器
-        echo "🔧 快速配置镜像加速器..."
-        sudo mkdir -p /etc/docker
-        sudo tee /etc/docker/daemon.json > /dev/null <<EOF
-        {
-          "registry-mirrors": [
-            "https://registry-1.docker.io",
-            "https://docker.mirrors.ustc.edu.cn",
-            "https://hub-mirror.c.163.com"
-          ],
-          "max-concurrent-downloads": 6,
-          "log-driver": "json-file",
-          "log-opts": {"max-size": "10m", "max-file": "3"}
-        }
-        EOF
-        
-        sudo systemctl restart docker
-        sleep 10
-        
-        # 设置项目目录
-        PROJECT_DIR="/opt/ai-novel-editor"
-        sudo mkdir -p "$PROJECT_DIR"
-        sudo chown $USER:$USER "$PROJECT_DIR"
-        cd "$PROJECT_DIR"
-        
-        # 克隆或更新代码
-        if [ -d ".git" ]; then
-          echo "📦 更新现有代码..."
-          git fetch origin && git reset --hard origin/main
-        else
-          echo "📦 克隆代码仓库..."
-          rm -rf * .*
-          git clone https://$PERSONAL_ACCESS_TOKEN@github.com/$GITHUB_REPOSITORY .
-        fi
-        
-        # 创建环境配置
-        echo "🔧 配置环境变量..."
-        cat > .env << EOF
-        # AI 服务配置
-        SILICONFLOW_API_KEY=$SILICONFLOW_API_KEY
-        SILICONFLOW_DEFAULT_MODEL=deepseek-ai/DeepSeek-V3
-        SILICONFLOW_API_URL=https://api.siliconflow.cn/v1/chat/completions
-        JWT_SECRET_KEY=$JWT_SECRET_KEY
-        
-        # 数据库配置
-        DATABASE_PORT=3306
-        DATABASE_SYSTEMHOST=172.16.16.3
-        DATABASE_SYSTEM=novel_data
-        DATABASE_USER=lkr
-        DATABASE_PASSWORD=Lekairong350702
-        DATABASE_NOVELHOST=172.16.16.2
-        DATABASE_NOVELDATA=novel_user_data
-        DATABASE_NOVELUSER=novel_data_user
-        DATABASE_NOVELUSER_PASSWORD=Lekairong350702
-        
-        # Redis 配置
-        REDIS_HOST=172.16.32.2
-        REDIS_PORT=6379
-        REDIS_PASSWORD=$REDIS_PASSWORD
-        
-        # MongoDB 配置
-        MONGODB_HOST=172.16.32.2
-        MONGODB_PORT=27017
-        MONGODB_DATABASE=ai_novel_db
-        EOF
-        
-        # 停止现有服务
-        echo "🛑 停止现有服务..."
-        docker-compose -f docker-compose.production.yml down --remove-orphans || true
-        
-        # 使用克隆的镜像直接启动
-        echo "🚀 启动服务 (克隆模式)..."
-        
-        # 先拉取基础镜像
-        echo "📦 拉取基础镜像..."
-        docker pull node:18-alpine || echo "警告: Node镜像拉取失败"
-        docker pull python:3.11-slim || echo "警告: Python镜像拉取失败"
-        docker pull nginx:alpine || echo "警告: Nginx镜像拉取失败"
-        
-        # 启动服务 (不构建，直接运行)
-        for i in {1..3}; do
-          echo "🚀 第 $i 次启动尝试..."
-          
-          if docker-compose -f docker-compose.production.yml up -d --build; then
-            echo "✅ 启动成功"
-            break
-          else
-            echo "❌ 第 $i 次启动失败"
-            if [ $i -lt 3 ]; then
-              echo "等待15秒后重试..."
-              docker-compose -f docker-compose.production.yml down || true
-              sleep 15
-            fi
-          fi
-        done
-        
-        # 等待服务初始化
-        echo "⏳ 等待服务初始化..."
-        sleep 30
-        
-        # 检查服务状态
-        echo "🔍 检查服务状态..."
-        docker-compose -f docker-compose.production.yml ps
-        
-        # 简单健康检查
-        echo "🔍 健康检查..."
-        for i in {1..5}; do
-          if curl -f --max-time 10 http://localhost:8000/health 2>/dev/null || curl -f --max-time 10 http://localhost:8000/ 2>/dev/null; then
-            echo "✅ 后端服务健康"
-            break
-          else
-            echo "第 $i 次健康检查失败，等待..."
-            sleep 10
-          fi
-        done
-        
-        echo "✅ 克隆模式部署完成！"
-        SCRIPT_EOF
-        
-        # 执行部署脚本
-        scp clone_deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        # 执行部署
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
           "export SERVER_IP=\"$SERVER_IP\" && \
            export SILICONFLOW_API_KEY=\"$SILICONFLOW_API_KEY\" && \
@@ -232,25 +46,26 @@ jobs:
            export REDIS_PASSWORD=\"$REDIS_PASSWORD\" && \
            export PERSONAL_ACCESS_TOKEN=\"$PERSONAL_ACCESS_TOKEN\" && \
            export GITHUB_REPOSITORY=\"${{ github.repository }}\" && \
-           chmod +x /tmp/clone_deploy.sh && \
-           bash /tmp/clone_deploy.sh"
+           chmod +x /tmp/quick-deploy.sh && \
+           bash /tmp/quick-deploy.sh"
         
-    - name: Final health check
+    - name: Health check
       run: |
-        echo "🔍 最终健康检查..."
+        echo "🔍 健康检查..."
+        sleep 60  # 等待服务启动
         
-        # 检查前端服务
-        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:80; then
+        # 检查前端
+        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:80 > /dev/null 2>&1; then
           echo "✅ 前端服务正常"
         else
-          echo "⚠️ 前端服务异常"
+          echo "⚠️ 前端服务检查失败"
         fi
         
-        # 检查后端API
-        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:8000/health; then
-          echo "✅ 后端API正常"
+        # 检查后端
+        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:8000/health > /dev/null 2>&1; then
+          echo "✅ 后端服务正常"
         else
-          echo "⚠️ 后端API异常"
+          echo "⚠️ 后端服务检查失败"
         fi
         
     - name: Deployment notification
@@ -258,12 +73,13 @@ jobs:
       run: |
         if [ "${{ job.status }}" == "success" ]; then
           echo "🎉 克隆模式部署成功！"
-          echo "🌐 前端地址: http://${{ secrets.SERVER_IP }}:80"
-          echo "🔧 后端API: http://${{ secrets.SERVER_IP }}:8000"
-          echo "📚 API文档: http://${{ secrets.SERVER_IP }}:8000/docs"
           echo ""
-          echo "⚡ 部署模式: 克隆模式 (无构建阶段)"
-          echo "⏱️ 部署时间: 约 5-8 分钟"
+          echo "🌐 服务地址:"
+          echo "  前端: http://${{ secrets.SERVER_IP }}:80"
+          echo "  后端: http://${{ secrets.SERVER_IP }}:8000"
+          echo "  文档: http://${{ secrets.SERVER_IP }}:8000/docs"
+          echo ""
+          echo "⚡ 部署模式: 克隆模式 (快速部署)"
         else
-          echo "❌ 克隆模式部署失败！"
+          echo "❌ 部署失败！请检查日志"
         fi
