@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 前端服务
   frontend:
@@ -10,7 +8,7 @@ services:
       - "80:80"
     environment:
       - VITE_API_BASE_URL=http://backend:8000
-      - VITE_SILICONFLOW_API_URL=${SILICONFLOW_API_URL}
+      - VITE_SILICONFLOW_API_URL=${SILICONFLOW_API_URL:-https://api.siliconflow.cn/v1}
     depends_on:
       - backend
     networks:
@@ -26,23 +24,23 @@ services:
       - "8000:8000"
     environment:
       # 生产环境使用云数据库服务
-      - MONGODB_URL=mongodb://${MONGODB_HOST}:${MONGODB_PORT}/${MONGODB_DATABASE}
-      - DATABASE_SYSTEM_URL=mysql+aiomysql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_SYSTEMHOST}:3306/${DATABASE_SYSTEM}
-      - DATABASE_NOVEL_URL=mysql+aiomysql://${DATABASE_NOVELUSER}:${DATABASE_NOVELUSER_PASSWORD}@${DATABASE_NOVELHOST}:3306/${DATABASE_NOVELDATA}
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT}
+      - MONGODB_URL=mongodb://${MONGODB_HOST:-mongodb-server}:${MONGODB_PORT:-27017}/${MONGODB_DATABASE:-ai_novel_db}
+      - DATABASE_SYSTEM_URL=mysql+aiomysql://${DATABASE_USER:-novel_user}:${DATABASE_PASSWORD:-defaultpass123}@${DATABASE_SYSTEMHOST:-mysql-system}:3306/${DATABASE_SYSTEM:-novel_system_db}
+      - DATABASE_NOVEL_URL=mysql+aiomysql://${DATABASE_NOVELUSER:-novel_data_user}:${DATABASE_NOVELUSER_PASSWORD:-novelpass123}@${DATABASE_NOVELHOST:-mysql-user}:3306/${DATABASE_NOVELDATA:-novel_content_db}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@${REDIS_HOST:-redis-server}:${REDIS_PORT:-6379}
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - SILICONFLOW_DEFAULT_MODEL=${SILICONFLOW_DEFAULT_MODEL}
-      - SILICONFLOW_API_URL=${SILICONFLOW_API_URL}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - CORS_ORIGINS=http://localhost:80,http://127.0.0.1:80,http://localhost:8080,http://127.0.0.1:8080,http://${SERVER_IP}:80,http://${SERVER_IP}:8080
-      - MCP_SERVER_NAME=${MCP_SERVER_NAME}
-      - MCP_SERVER_PORT=${MCP_SERVER_PORT}
-      - MCP_SERVER_HOST=${MCP_SERVER_HOST}
-      - MCP_TOOLS_ENABLED=${MCP_TOOLS_ENABLED}
-      - MCP_TOOLS_LIST=${MCP_TOOLS_LIST}
-      - NOVEL_GENERATION_MAX_TOKENS=${NOVEL_GENERATION_MAX_TOKENS}
-      - NOVEL_GENERATION_TEMPERATURE=${NOVEL_GENERATION_TEMPERATURE}
-      - NOVEL_GENERATION_TOP_P=${NOVEL_GENERATION_TOP_P}
+      - SILICONFLOW_DEFAULT_MODEL=${SILICONFLOW_DEFAULT_MODEL:-deepseek-v3}
+      - SILICONFLOW_API_URL=${SILICONFLOW_API_URL:-https://api.siliconflow.cn/v1}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-here}
+      - CORS_ORIGINS=http://localhost:80,http://127.0.0.1:80,http://localhost:8080,http://127.0.0.1:8080,http://${SERVER_IP:-localhost}:80,http://${SERVER_IP:-localhost}:8080
+      - MCP_SERVER_NAME=${MCP_SERVER_NAME:-novel-editor-mcp}
+      - MCP_SERVER_PORT=${MCP_SERVER_PORT:-8001}
+      - MCP_SERVER_HOST=${MCP_SERVER_HOST:-localhost}
+      - MCP_TOOLS_ENABLED=${MCP_TOOLS_ENABLED:-true}
+      - MCP_TOOLS_LIST=${MCP_TOOLS_LIST:-character_manager,plot_manager,world_manager}
+      - NOVEL_GENERATION_MAX_TOKENS=${NOVEL_GENERATION_MAX_TOKENS:-2048}
+      - NOVEL_GENERATION_TEMPERATURE=${NOVEL_GENERATION_TEMPERATURE:-0.7}
+      - NOVEL_GENERATION_TOP_P=${NOVEL_GENERATION_TOP_P:-0.9}
     networks:
       - app-network
     extra_hosts:
