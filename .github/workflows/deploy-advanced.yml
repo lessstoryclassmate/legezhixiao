@@ -279,6 +279,93 @@ jobs:
         
         echo "🚀 开始部署AI小说编辑器..."
         
+        # 检查和安装Docker环境
+        echo "🔍 检查Docker环境..."
+        
+        # 检查Docker是否安装
+        if ! command -v docker &> /dev/null; then
+          echo "❌ Docker未安装，开始安装..."
+          
+          # 更新包索引
+          sudo apt-get update
+          
+          # 安装必要的包
+          sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+          
+          # 添加Docker官方GPG密钥
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+          
+          # 设置稳定版仓库
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          
+          # 安装Docker Engine
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+          
+          # 启动并启用Docker服务
+          sudo systemctl start docker
+          sudo systemctl enable docker
+          
+          # 将当前用户添加到docker组
+          sudo usermod -aG docker $USER
+          
+          echo "✅ Docker安装完成"
+        else
+          echo "✅ Docker已安装: $(docker --version)"
+        fi
+        
+        # 检查Docker Compose是否安装
+        if ! command -v docker-compose &> /dev/null; then
+          echo "❌ Docker Compose未安装，开始安装..."
+          
+          # 下载最新版本的Docker Compose
+          DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
+          sudo curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          
+          # 添加执行权限
+          sudo chmod +x /usr/local/bin/docker-compose
+          
+          # 创建符号链接
+          sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+          
+          echo "✅ Docker Compose安装完成"
+        else
+          echo "✅ Docker Compose已安装: $(docker-compose --version)"
+        fi
+        
+        # 验证Docker服务状态
+        echo "🔍 验证Docker服务状态..."
+        if sudo systemctl is-active --quiet docker; then
+          echo "✅ Docker服务正在运行"
+        else
+          echo "⚠️ Docker服务未运行，尝试启动..."
+          sudo systemctl start docker
+          sleep 5
+          if sudo systemctl is-active --quiet docker; then
+            echo "✅ Docker服务启动成功"
+          else
+            echo "❌ Docker服务启动失败"
+            sudo systemctl status docker
+            exit 1
+          fi
+        fi
+        
+        # 测试Docker命令
+        echo "🔍 测试Docker命令..."
+        if sudo docker run --rm hello-world > /dev/null 2>&1; then
+          echo "✅ Docker命令测试成功"
+        else
+          echo "❌ Docker命令测试失败，检查权限..."
+          # 如果用户不在docker组中，使用sudo
+          if sudo docker run --rm hello-world > /dev/null 2>&1; then
+            echo "✅ Docker命令(sudo)测试成功"
+            echo "⚠️ 注意：需要使用sudo运行docker命令"
+          else
+            echo "❌ Docker命令完全失败"
+            exit 1
+          fi
+        fi
+        
         # 设置部署目录
         PROJECT_DIR="/opt/ai-novel-editor"
         BACKUP_DIR="/opt/backups/ai-novel-editor-$(date +%Y%m%d_%H%M%S)"
@@ -455,20 +542,36 @@ jobs:
         # 设置脚本权限
         chmod +x scripts/*.sh || true
         
+        # 检测是否需要sudo运行docker命令
+        DOCKER_CMD="docker"
+        COMPOSE_CMD="docker-compose"
+        if ! docker ps &> /dev/null; then
+          if sudo docker ps &> /dev/null; then
+            echo "⚠️ 需要使用sudo运行Docker命令"
+            DOCKER_CMD="sudo docker"
+            COMPOSE_CMD="sudo docker-compose"
+          else
+            echo "❌ Docker命令无法执行"
+            exit 1
+          fi
+        else
+          echo "✅ 可以直接运行Docker命令"
+        fi
+        
         # 停止现有服务
         echo "🛑 停止现有服务..."
-        docker-compose -f docker-compose.production.yml down || true
+        $COMPOSE_CMD -f docker-compose.production.yml down || true
         
         # 清理Docker缓存
         echo "🧹 清理Docker缓存..."
-        docker system prune -f || true
+        $DOCKER_CMD system prune -f || true
         
         # 构建和启动服务
         echo "🔧 构建和启动服务..."
-        docker-compose -f docker-compose.production.yml build --no-cache
+        $COMPOSE_CMD -f docker-compose.production.yml build --no-cache
         
         echo "🚀 启动服务..."
-        docker-compose -f docker-compose.production.yml up -d
+        $COMPOSE_CMD -f docker-compose.production.yml up -d
         
         echo "⏳ 等待服务启动..."
         sleep 60
@@ -483,9 +586,9 @@ jobs:
         else
             echo "❌ 生产环境后端服务健康检查失败"
             echo "📋 检查容器状态..."
-            docker-compose -f docker-compose.production.yml ps
+            $COMPOSE_CMD -f docker-compose.production.yml ps
             echo "📋 检查后端日志..."
-            docker-compose -f docker-compose.production.yml logs --tail=50 backend
+            $COMPOSE_CMD -f docker-compose.production.yml logs --tail=50 backend
             
             # 执行生产环境特定诊断
             echo "🔍 执行生产环境诊断..."
@@ -493,7 +596,7 @@ jobs:
             NODE_ENV=production bash scripts/production-diagnostics.sh
             
             echo "❌ 后端服务启动失败"
-            docker-compose -f docker-compose.production.yml logs backend
+            $COMPOSE_CMD -f docker-compose.production.yml logs backend
             exit 1
         fi
         
