@@ -11,28 +11,56 @@ PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
 
-# 0. 安装Docker镜像加速器
-echo "🐳 配置Docker镜像加速器..."
+# 0. 配置Docker镜像加速器和网络优化
+echo "🐳 配置Docker镜像加速器和网络优化..."
 sudo mkdir -p /etc/docker
+
+# 检测地区并配置相应的镜像源
+if curl -s --connect-timeout 3 registry-1.docker.io > /dev/null 2>&1; then
+    echo "✅ Docker Hub 可直接访问"
+    # 仍然配置加速器以提高速度
+    MIRRORS='"https://registry.docker-cn.com", "https://docker.mirrors.ustc.edu.cn"'
+else
+    echo "⚠️  Docker Hub 访问受限，配置国内镜像源..."
+    MIRRORS='"https://docker.mirrors.ustc.edu.cn", "https://hub-mirror.c.163.com", "https://registry.cn-hangzhou.aliyuncs.com", "https://registry.docker-cn.com"'
+fi
+
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
   "registry-mirrors": [
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://hub-mirror.c.163.com",
-    "https://mirrors.tuna.tsinghua.edu.cn/docker-ce",
-    "https://registry.docker-cn.com"
+    ${MIRRORS}
   ],
   "max-concurrent-downloads": 10,
+  "max-concurrent-uploads": 5,
   "log-driver": "json-file",
   "log-opts": {
-    "max-size": "100m"
+    "max-size": "100m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2",
+  "experimental": false,
+  "features": {
+    "buildkit": true
   }
 }
 EOF
 
 # 重启Docker服务
+echo "🔄 重启Docker服务..."
 sudo systemctl daemon-reload
 sudo systemctl restart docker
+
+# 等待Docker服务完全启动
+sleep 5
+
+# 验证Docker是否正常工作
+echo "🔍 验证Docker服务状态..."
+if ! sudo docker info > /dev/null 2>&1; then
+    echo "❌ Docker服务启动失败"
+    exit 1
+fi
+
+echo "✅ Docker服务配置完成"
 
 # 1. 停止现有服务
 echo "⏹️  停止现有服务..."
@@ -114,58 +142,213 @@ if ! sudo docker-compose -f docker-compose.production.yml config > /dev/null; th
     exit 1
 fi
 
-# 6. 拉取镜像 (使用重试机制)
-echo "📦 拉取Docker镜像..."
-for i in {1..3}; do
-    if sudo docker-compose -f docker-compose.production.yml pull; then
-        echo "✅ 镜像拉取成功"
-        break
-    else
-        echo "⚠️  镜像拉取失败，重试 $i/3..."
-        sleep 10
+# 6. 预拉取基础镜像 (使用强化重试机制)
+echo "📦 预拉取基础镜像..."
+
+# 定义所需的基础镜像
+BASE_IMAGES=(
+    "node:18-alpine"
+    "python:3.11-slim"
+    "nginx:alpine"
+)
+
+# 拉取基础镜像的函数
+pull_image_with_retry() {
+    local image=$1
+    local max_attempts=5
+    
+    echo "🔄 拉取镜像: $image"
+    
+    for attempt in $(seq 1 $max_attempts); do
+        echo "   尝试 $attempt/$max_attempts..."
+        
+        if sudo docker pull "$image"; then
+            echo "   ✅ $image 拉取成功"
+            return 0
+        else
+            echo "   ❌ $image 拉取失败"
+            if [ $attempt -lt $max_attempts ]; then
+                local wait_time=$((attempt * 10))
+                echo "   ⏳ 等待 ${wait_time}s 后重试..."
+                sleep $wait_time
+            fi
+        fi
+    done
+    
+    echo "   ⚠️  $image 拉取失败，尝试替代方案..."
+    return 1
+}
+
+# 预拉取所有基础镜像
+failed_images=()
+for image in "${BASE_IMAGES[@]}"; do
+    if ! pull_image_with_retry "$image"; then
+        failed_images+=("$image")
     fi
 done
 
-# 7. 构建并启动服务
-echo "🏗️  构建并启动服务..."
-sudo docker-compose -f docker-compose.production.yml up -d --build
-
-# 8. 等待服务启动
-echo "⏳ 等待服务启动..."
-sleep 30
-
-# 9. 健康检查
-echo "🏥 执行健康检查..."
-for i in {1..10}; do
-    if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-        echo "✅ 后端服务健康检查通过"
-        break
+# 如果有镜像拉取失败，尝试替代方案
+if [ ${#failed_images[@]} -gt 0 ]; then
+    echo "⚠️  以下镜像拉取失败: ${failed_images[*]}"
+    echo "🔄 尝试使用 docker-compose 拉取..."
+    
+    # 使用 docker-compose 拉取 (可能使用不同的策略)
+    if ! sudo docker-compose -f docker-compose.production.yml pull --ignore-pull-failures; then
+        echo "❌ docker-compose 拉取也失败"
+        echo "🔧 尝试构建本地镜像..."
+        # 继续执行，让 docker-compose build 处理
     else
-        echo "⏳ 等待后端服务启动... ($i/10)"
-        sleep 10
+        echo "✅ docker-compose 拉取成功"
     fi
-done
-
-if curl -f http://localhost:80 > /dev/null 2>&1; then
-    echo "✅ 前端服务健康检查通过"
 else
-    echo "⚠️  前端服务可能未完全启动"
+    echo "✅ 所有基础镜像拉取成功"
+    # 现在拉取应用镜像
+    sudo docker-compose -f docker-compose.production.yml pull || echo "⚠️  应用镜像拉取失败，将使用构建模式"
 fi
 
-# 10. 显示服务状态
-echo "📊 服务状态:"
+# 7. 构建并启动服务 (增强错误处理)
+echo "🏗️  构建并启动服务..."
+
+# 尝试不同的构建策略
+echo "🔄 尝试标准构建模式..."
+if sudo docker-compose -f docker-compose.production.yml up -d --build; then
+    echo "✅ 标准构建成功"
+else
+    echo "❌ 标准构建失败，尝试单独构建..."
+    
+    # 尝试分别构建每个服务
+    echo "🔄 分别构建各个服务..."
+    
+    # 构建后端
+    echo "  📦 构建后端服务..."
+    if ! sudo docker-compose -f docker-compose.production.yml build backend; then
+        echo "  ❌ 后端构建失败"
+        # 检查是否可以使用预构建镜像
+        echo "  🔄 尝试使用无缓存构建..."
+        sudo docker-compose -f docker-compose.production.yml build --no-cache backend || {
+            echo "  ❌ 后端无缓存构建也失败"
+            exit 1
+        }
+    fi
+    
+    # 构建前端
+    echo "  🎨 构建前端服务..."
+    if ! sudo docker-compose -f docker-compose.production.yml build frontend; then
+        echo "  ❌ 前端构建失败"
+        echo "  🔄 尝试使用无缓存构建..."
+        sudo docker-compose -f docker-compose.production.yml build --no-cache frontend || {
+            echo "  ❌ 前端无缓存构建也失败"
+            exit 1
+        }
+    fi
+    
+    # 启动所有服务
+    echo "  🚀 启动所有服务..."
+    sudo docker-compose -f docker-compose.production.yml up -d || {
+        echo "❌ 服务启动失败"
+        echo "📋 检查服务状态："
+        sudo docker-compose -f docker-compose.production.yml ps
+        echo "📋 检查服务日志："
+        sudo docker-compose -f docker-compose.production.yml logs --tail=50
+        exit 1
+    }
+fi
+
+echo "✅ 服务构建和启动完成"
+
+# 8. 等待服务启动并验证
+echo "⏳ 等待服务启动..."
+
+# 等待容器启动
+sleep 15
+
+# 检查容器状态
+echo "📊 检查容器状态..."
+if ! sudo docker-compose -f docker-compose.production.yml ps | grep -q "Up"; then
+    echo "⚠️  部分容器可能未正常启动"
+    echo "📋 容器状态详情："
+    sudo docker-compose -f docker-compose.production.yml ps
+    echo "📋 容器日志："
+    sudo docker-compose -f docker-compose.production.yml logs --tail=20
+fi
+
+# 分阶段健康检查
+echo "🏥 执行健康检查..."
+
+# 1. 检查后端服务
+echo "  🔍 检查后端服务..."
+backend_healthy=false
+for i in {1..12}; do
+    if curl -f -s http://localhost:8000/health > /dev/null 2>&1; then
+        echo "  ✅ 后端服务健康检查通过"
+        backend_healthy=true
+        break
+    else
+        echo "  ⏳ 后端服务启动中... ($i/12)"
+        sleep 10
+    fi
+done
+
+if [ "$backend_healthy" = false ]; then
+    echo "  ❌ 后端服务健康检查失败"
+    echo "  📋 后端服务日志："
+    sudo docker-compose -f docker-compose.production.yml logs backend --tail=30
+fi
+
+# 2. 检查前端服务
+echo "  🔍 检查前端服务..."
+frontend_healthy=false
+for i in {1..6}; do
+    if curl -f -s http://localhost:80 > /dev/null 2>&1; then
+        echo "  ✅ 前端服务健康检查通过"
+        frontend_healthy=true
+        break
+    else
+        echo "  ⏳ 前端服务启动中... ($i/6)"
+        sleep 5
+    fi
+done
+
+if [ "$frontend_healthy" = false ]; then
+    echo "  ⚠️  前端服务可能未完全启动"
+    echo "  📋 前端服务日志："
+    sudo docker-compose -f docker-compose.production.yml logs frontend --tail=20
+fi
+
+# 9. 显示最终服务状态
+echo ""
+echo "📊 最终服务状态:"
 sudo docker-compose -f docker-compose.production.yml ps
 
-# 11. 显示部署信息
+# 检查是否有失败的服务
+if sudo docker-compose -f docker-compose.production.yml ps | grep -q "Exit"; then
+    echo ""
+    echo "❌ 发现失败的服务，显示详细日志："
+    sudo docker-compose -f docker-compose.production.yml logs --tail=50
+    exit 1
+fi
+
+# 10. 显示部署信息
 echo ""
-echo "🎉 部署完成!"
+if [ "$backend_healthy" = true ] && [ "$frontend_healthy" = true ]; then
+    echo "🎉 部署完成且服务正常!"
+elif [ "$backend_healthy" = true ]; then
+    echo "🎯 部署完成! (后端正常，前端可能需要更多启动时间)"
+else
+    echo "⚠️  部署完成但服务可能存在问题，请检查日志"
+fi
+
+echo ""
 echo "📍 访问地址:"
-echo "  - 前端: http://${SERVER_IP}"
-echo "  - API: http://${SERVER_IP}:8000"
-echo "  - 健康检查: http://${SERVER_IP}:8000/health"
+echo "  - 前端: http://${SERVER_IP:-106.13.216.179}"
+echo "  - API: http://${SERVER_IP:-106.13.216.179}:8000"
+echo "  - 健康检查: http://${SERVER_IP:-106.13.216.179}:8000/health"
 echo ""
-echo "📝 查看日志:"
-echo "  sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml logs -f"
+echo "📝 有用的命令:"
+echo "  查看日志: sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml logs -f"
+echo "  重启服务: sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml restart"
+echo "  停止服务: sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml down"
+echo "  查看状态: sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml ps"
 echo ""
-echo "🔄 重启服务:"
-echo "  sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml restart"
+echo "🔧 故障排除:"
+echo "  如果服务无法访问，请检查防火墙设置和端口开放情况"
