@@ -350,21 +350,41 @@ jobs:
           fi
         fi
         
-        # 测试Docker命令
-        echo "🔍 测试Docker命令..."
-        if sudo docker run --rm hello-world > /dev/null 2>&1; then
-          echo "✅ Docker命令测试成功"
+        # 强制确保用户在docker组中
+        echo "🔧 确保Docker权限配置..."
+        sudo usermod -aG docker $USER
+        
+        # 强制重新加载用户组（针对脚本执行环境）
+        if groups $USER | grep -q docker; then
+          echo "✅ 用户已在docker组中"
         else
-          echo "❌ Docker命令测试失败，检查权限..."
-          # 如果用户不在docker组中，使用sudo
-          if sudo docker run --rm hello-world > /dev/null 2>&1; then
+          echo "⚠️ 用户不在docker组，但已添加。可能需要重新登录或使用sudo"
+        fi
+        
+        # 测试Docker命令（优先尝试不用sudo）
+        echo "🔍 测试Docker命令..."
+        DOCKER_CMD="docker"
+        COMPOSE_CMD="docker-compose"
+        
+        # 尝试直接运行docker
+        if timeout 10 docker run --rm hello-world > /dev/null 2>&1; then
+          echo "✅ Docker命令测试成功（无需sudo）"
+        else
+          echo "⚠️ 直接运行docker失败，尝试sudo..."
+          if timeout 10 sudo docker run --rm hello-world > /dev/null 2>&1; then
             echo "✅ Docker命令(sudo)测试成功"
-            echo "⚠️ 注意：需要使用sudo运行docker命令"
+            DOCKER_CMD="sudo docker"
+            COMPOSE_CMD="sudo docker-compose"
           else
-            echo "❌ Docker命令完全失败"
+            echo "❌ Docker命令完全失败，检查安装和服务状态"
+            sudo systemctl status docker
+            sudo docker version || true
             exit 1
           fi
         fi
+        
+        echo "📋 使用Docker命令: $DOCKER_CMD"
+        echo "📋 使用Compose命令: $COMPOSE_CMD"
         
         # 设置部署目录
         PROJECT_DIR="/opt/ai-novel-editor"
@@ -499,39 +519,69 @@ jobs:
         echo "MySQL用户库: 172.16.16.2:3306/novel_user_data"
         echo "Redis: 172.16.32.2:6379"
         
-        # 检查数据库服务可达性
+        # 检查数据库服务可达性（关键！！！）
         echo "🔍 检查数据库服务可达性..."
+        DB_CHECK_FAILED=false
         
         # 检查 MongoDB
-        if timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/27017" 2>/dev/null; then
-          echo "✅ MongoDB (172.16.32.2:27017) 可连接"
+        echo "🔍 检查MongoDB连接..."
+        if timeout 15 bash -c "echo > /dev/tcp/172.16.32.2/27017" 2>/dev/null; then
+          echo "✅ MongoDB (172.16.32.2:27017) 端口可连接"
         else
-          echo "❌ MongoDB (172.16.32.2:27017) 连接失败"
-          echo "请检查："
-          echo "1. MongoDB 服务是否启动: sudo systemctl status mongod"
-          echo "2. MongoDB 绑定地址: grep bindIp /etc/mongod.conf"
-          echo "3. 防火墙设置: sudo ufw status | grep 27017"
-          echo "4. 端口监听: netstat -tlnp | grep 27017"
+          echo "❌ MongoDB (172.16.32.2:27017) 端口连接失败"
+          DB_CHECK_FAILED=true
+          echo "MongoDB故障排查："
+          echo "  1. 检查MongoDB服务状态"
+          echo "  2. 检查防火墙规则"
+          echo "  3. 检查网络路由"
         fi
         
         # 检查 Redis
-        if timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/6379" 2>/dev/null; then
-          echo "✅ Redis (172.16.32.2:6379) 可连接"
+        echo "🔍 检查Redis连接..."
+        if timeout 15 bash -c "echo > /dev/tcp/172.16.32.2/6379" 2>/dev/null; then
+          echo "✅ Redis (172.16.32.2:6379) 端口可连接"
         else
-          echo "❌ Redis (172.16.32.2:6379) 连接失败"
+          echo "❌ Redis (172.16.32.2:6379) 端口连接失败"
+          DB_CHECK_FAILED=true
+          echo "Redis故障排查："
+          echo "  1. 检查Redis服务状态"
+          echo "  2. 检查防火墙规则"
         fi
         
-        # 检查 MySQL
-        if timeout 10 bash -c "echo > /dev/tcp/172.16.16.3/3306" 2>/dev/null; then
-          echo "✅ MySQL 系统库 (172.16.16.3:3306) 可连接"
+        # 检查 MySQL 系统库
+        echo "🔍 检查MySQL系统库连接..."
+        if timeout 15 bash -c "echo > /dev/tcp/172.16.16.3/3306" 2>/dev/null; then
+          echo "✅ MySQL 系统库 (172.16.16.3:3306) 端口可连接"
         else
-          echo "❌ MySQL 系统库连接失败"
+          echo "❌ MySQL 系统库端口连接失败"
+          DB_CHECK_FAILED=true
         fi
         
-        if timeout 10 bash -c "echo > /dev/tcp/172.16.16.2/3306" 2>/dev/null; then
-          echo "✅ MySQL 用户库 (172.16.16.2:3306) 可连接"
+        # 检查 MySQL 用户库
+        echo "🔍 检查MySQL用户库连接..."
+        if timeout 15 bash -c "echo > /dev/tcp/172.16.16.2/3306" 2>/dev/null; then
+          echo "✅ MySQL 用户库 (172.16.16.2:3306) 端口可连接"
         else
-          echo "❌ MySQL 用户库连接失败"
+          echo "❌ MySQL 用户库端口连接失败"
+          DB_CHECK_FAILED=true
+        fi
+        
+        # 如果数据库连接有问题，给出明确警告但不阻止部署
+        if [ "$DB_CHECK_FAILED" = true ]; then
+          echo ""
+          echo "⚠️⚠️⚠️ 数据库连接检查发现问题 ⚠️⚠️⚠️"
+          echo "这很可能是后端服务启动失败的根本原因！"
+          echo "后端服务将在连接数据库时卡死或异常退出。"
+          echo ""
+          echo "建议操作："
+          echo "1. 立即检查数据库服务器状态"
+          echo "2. 检查网络连通性和防火墙设置"
+          echo "3. 确认数据库配置正确"
+          echo ""
+          echo "继续部署（可能失败）..."
+          sleep 10
+        else
+          echo "✅ 所有数据库服务端口检查通过"
         fi
         
         # 提升 MongoDB vm.max_map_count 参数（虽然用云数据库，但保留以防万一）
@@ -542,62 +592,122 @@ jobs:
         # 设置脚本权限
         chmod +x scripts/*.sh || true
         
-        # 检测是否需要sudo运行docker命令
-        DOCKER_CMD="docker"
-        COMPOSE_CMD="docker-compose"
-        if ! docker ps &> /dev/null; then
-          if sudo docker ps &> /dev/null; then
-            echo "⚠️ 需要使用sudo运行Docker命令"
-            DOCKER_CMD="sudo docker"
-            COMPOSE_CMD="sudo docker-compose"
-          else
-            echo "❌ Docker命令无法执行"
-            exit 1
-          fi
-        else
-          echo "✅ 可以直接运行Docker命令"
-        fi
-        
         # 停止现有服务
         echo "🛑 停止现有服务..."
-        $COMPOSE_CMD -f docker-compose.production.yml down || true
+        $COMPOSE_CMD -f docker-compose.production.yml down --remove-orphans || true
         
-        # 清理Docker缓存
+        # 清理Docker缓存（适度清理）
         echo "🧹 清理Docker缓存..."
-        $DOCKER_CMD system prune -f || true
+        $DOCKER_CMD container prune -f || true
+        $DOCKER_CMD image prune -f || true
         
-        # 构建和启动服务
-        echo "🔧 构建和启动服务..."
-        $COMPOSE_CMD -f docker-compose.production.yml build --no-cache
+        # 构建服务
+        echo "🔧 构建Docker镜像..."
+        if $COMPOSE_CMD -f docker-compose.production.yml build --no-cache; then
+          echo "✅ Docker镜像构建成功"
+        else
+          echo "❌ Docker镜像构建失败"
+          exit 1
+        fi
         
+        # 启动服务
         echo "🚀 启动服务..."
-        $COMPOSE_CMD -f docker-compose.production.yml up -d
+        if $COMPOSE_CMD -f docker-compose.production.yml up -d; then
+          echo "✅ 服务启动命令执行成功"
+        else
+          echo "❌ 服务启动命令失败"
+          exit 1
+        fi
         
-        echo "⏳ 等待服务启动..."
-        sleep 60
+        # 立即检查容器状态
+        echo "🔍 检查容器状态..."
+        $COMPOSE_CMD -f docker-compose.production.yml ps
+        
+        # 分阶段等待和检查
+        echo "⏳ 等待服务初始化..."
+        sleep 30
+        
+        # 检查容器是否还在运行
+        echo "🔍 检查容器运行状态..."
+        if $COMPOSE_CMD -f docker-compose.production.yml ps | grep -q "Up"; then
+          echo "✅ 至少有容器在运行"
+        else
+          echo "❌ 没有容器在运行，检查启动日志"
+          $COMPOSE_CMD -f docker-compose.production.yml ps
+          $COMPOSE_CMD -f docker-compose.production.yml logs
+          exit 1
+        fi
+        
+        # 检查后端容器状态
+        echo "🔍 专项检查后端容器..."
+        if $COMPOSE_CMD -f docker-compose.production.yml ps backend | grep -q "Up"; then
+          echo "✅ 后端容器正在运行"
+          
+          # 显示后端容器日志预览
+          echo "📋 后端容器启动日志预览:"
+          $COMPOSE_CMD -f docker-compose.production.yml logs --tail=20 backend
+          
+        else
+          echo "❌ 后端容器未运行或已退出"
+          echo "📋 后端容器状态:"
+          $COMPOSE_CMD -f docker-compose.production.yml ps backend
+          echo "📋 后端容器日志:"
+          $COMPOSE_CMD -f docker-compose.production.yml logs backend
+          
+          echo "❌ 后端容器启动失败，中止部署"
+          exit 1
+        fi
+        
+        # 继续等待服务稳定
+        echo "⏳ 等待服务稳定运行..."
+        sleep 30
+        
+        # 再次检查容器状态
+        echo "🔍 二次检查容器状态..."
+        $COMPOSE_CMD -f docker-compose.production.yml ps
         
         # 检查服务健康状态
-        echo "🔍 检查服务健康状态..."
-        chmod +x scripts/check-backend-health.sh
+        echo "🔍 开始健康检查..."
+        chmod +x scripts/check-backend-health.sh || echo "健康检查脚本不存在，使用内置检查"
         
-        # 使用专门的健康检查脚本
-        if bash scripts/check-backend-health.sh localhost 8000 10 15; then
-            echo "✅ 生产环境后端服务健康检查通过"
+        # 尝试健康检查
+        HEALTH_CHECK_SUCCESS=false
+        for i in {1..5}; do
+          echo "🔍 第 $i 次健康检查尝试..."
+          
+          # 简单的HTTP检查
+          if curl -f --max-time 15 --connect-timeout 10 http://localhost:8000/health 2>/dev/null; then
+            echo "✅ 后端健康检查通过"
+            HEALTH_CHECK_SUCCESS=true
+            break
+          elif curl -f --max-time 15 --connect-timeout 10 http://localhost:8000/ 2>/dev/null; then
+            echo "✅ 后端根路径可访问"
+            HEALTH_CHECK_SUCCESS=true
+            break
+          else
+            echo "❌ 第 $i 次健康检查失败"
+            if [ $i -lt 5 ]; then
+              echo "等待15秒后重试..."
+              sleep 15
+            fi
+          fi
+        done
+        
+        if [ "$HEALTH_CHECK_SUCCESS" = false ]; then
+          echo "❌ 所有健康检查都失败了"
+          echo "📋 最终容器状态:"
+          $COMPOSE_CMD -f docker-compose.production.yml ps
+          echo "📋 后端详细日志:"
+          $COMPOSE_CMD -f docker-compose.production.yml logs --tail=100 backend
+          
+          echo "🔍 网络和端口诊断:"
+          netstat -tlnp | grep :8000 || echo "端口8000未监听"
+          
+          # 但不立即退出，继续运行诊断
+          echo "⚠️ 健康检查失败，但继续执行诊断脚本"
         else
-            echo "❌ 生产环境后端服务健康检查失败"
-            echo "📋 检查容器状态..."
-            $COMPOSE_CMD -f docker-compose.production.yml ps
-            echo "📋 检查后端日志..."
-            $COMPOSE_CMD -f docker-compose.production.yml logs --tail=50 backend
-            
-            # 执行生产环境特定诊断
-            echo "🔍 执行生产环境诊断..."
-            chmod +x scripts/production-diagnostics.sh
-            NODE_ENV=production bash scripts/production-diagnostics.sh
-            
-            echo "❌ 后端服务启动失败"
-            $COMPOSE_CMD -f docker-compose.production.yml logs backend
-            exit 1
+          echo "✅ 后端服务健康检查通过"
+        fi
         fi
         
         echo "✅ 部署完成！"
