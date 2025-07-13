@@ -38,7 +38,11 @@ if command -v docker &> /dev/null; then
     echo "✅ Docker已安装: $(docker --version)"
     
     # 检查Docker服务状态
-        echo "请确保 Docker 已经启动。建议使用 Docker Compose 管理所有服务。"
+    echo "请确保 Docker 已经启动。建议使用 Docker Compose 管理所有服务。"
+else
+    echo "❌ Docker未安装，请手动安装Docker"
+    echo "Docker服务状态: '未知' (已移除 systemctl 检查，请用 docker info 检查状态)"
+fi
 
 # 检查Docker Compose是否已安装
 echo ""
@@ -47,7 +51,6 @@ if command -v docker-compose &> /dev/null; then
     echo "✅ Docker Compose已安装: $(docker-compose --version)"
 else
     echo "❌ Docker Compose未安装，开始安装..."
-echo "Docker服务状态: '未知' (已移除 systemctl 检查，请用 docker info 检查状态)"
     # 获取最新版本号
     echo "🔍 获取Docker Compose最新版本..."
     DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
