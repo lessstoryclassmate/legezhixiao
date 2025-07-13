@@ -12,12 +12,23 @@ DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
 
 
-# 0. 配置百度云和阿里云 Docker 镜像加速器（中国大陆推荐）
-echo "🌐 修复 DNS 配置为阿里公共 DNS..."
-sudo bash -c 'echo "nameserver 223.5.5.5" > /etc/resolv.conf'
-echo "✅ DNS 已设置为 223.5.5.5 (阿里公共 DNS)"
-
 echo "🐳 配置百度云 Docker 镜像加速器..."
+
+
+# 0. 仅配置百度云 Docker 镜像加速器（中国大陆推荐）
+echo "🌐 修复 DNS 配置为百度公共 DNS..."
+sudo bash -c 'echo "nameserver 180.76.76.76" > /etc/resolv.conf'
+echo "✅ DNS 已设置为 180.76.76.76 (百度公共 DNS)"
+
+# 只检测百度云镜像源
+echo "🌐 检查百度云镜像源可用性..."
+if curl -s --connect-timeout 8 https://mirror.baidubce.com/v2/ > /dev/null; then
+    echo "✅ 百度云镜像源可访问"
+else
+    echo "❌ 百度云镜像源无法访问，请检查服务器网络或 DNS 设置！"
+    nslookup mirror.baidubce.com || true
+    exit 2
+fi
 sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
@@ -74,6 +85,10 @@ echo "📥 克隆最新代码..."
 sudo mkdir -p "$DEPLOY_DIR"
 cd /tmp
 rm -rf ai-novel-editor-clone
+# 优化 git 克隆参数，提升大仓库/慢网环境下的稳定性
+git config --global http.postBuffer 524288000
+git config --global http.lowSpeedLimit 0
+git config --global http.lowSpeedTime 999999
 git clone "$GITHUB_REPO" ai-novel-editor-clone
 sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
 sudo chown -R $USER:$USER "$DEPLOY_DIR"
@@ -155,16 +170,6 @@ else
     echo "❌ 服务构建失败"
     echo "� 构建日志："
     tail -20 /tmp/docker-build.log
-    echo ""
-    echo "🔍 检查Docker网络连接..."
-    if ! curl -s --connect-timeout 5 https://registry-1.docker.io/v2/ > /dev/null; then
-        echo "❌ Docker Hub 无法访问"
-        echo "💡 建议检查："
-        echo "   1. 网络连接: ping 8.8.8.8"
-        echo "   2. DNS配置: nslookup registry-1.docker.io"
-        echo "   3. 防火墙设置"
-        echo "   4. 代理配置"
-    fi
     exit 1
 fi
 
