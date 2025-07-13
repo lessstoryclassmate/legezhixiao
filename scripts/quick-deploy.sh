@@ -138,7 +138,7 @@ if ! sudo docker-compose -f docker-compose.production.yml config > /dev/null; th
     exit 1
 fi
 
-echo "📦 跳过 Docker Hub 镜像拉取，仅使用国内镜像源构建..."
+
 
 # 7. 构建并启动服务
 echo "🏗️  构建并启动服务..."
