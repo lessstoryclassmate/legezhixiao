@@ -55,36 +55,34 @@ jobs:
         # 上传部署相关脚本
         scp scripts/quick-deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
         scp scripts/network-diagnosis.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
-        
+
         # 执行网络诊断
         echo "🔍 执行网络诊断..."
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
-          "chmod +x /tmp/network-diagnosis.sh && /tmp/network-diagnosis.sh"
-        
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "chmod +x /tmp/network-diagnosis.sh && /tmp/network-diagnosis.sh"
+
         # 执行部署
         echo "🚀 开始部署..."
-        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
-          "export SERVER_IP=\"$SERVER_IP\" && \
-           export SILICONFLOW_API_KEY=\"$SILICONFLOW_API_KEY\" && \
-           export JWT_SECRET_KEY=\"$JWT_SECRET_KEY\" && \
-           export REDIS_PASSWORD=\"$REDIS_PASSWORD\" && \
-           export DATABASE_PASSWORD=\"\${DATABASE_PASSWORD:-Lekairong350702}\" && \
-           export DATABASE_NOVELUSER_PASSWORD=\"\${DATABASE_NOVELUSER_PASSWORD:-Lekairong350702}\" && \
-           export GITHUB_REPOSITORY=\"${{ github.repository }}\" && \
-           chmod +x /tmp/quick-deploy.sh && \
-           timeout 1800 /tmp/quick-deploy.sh || { \
-             echo '❌ 部署超时或失败'; \
-             echo '📋 检查 Docker 服务状态:'; \
-             sudo systemctl status docker || true; \
-             echo '📋 检查容器状态:'; \
-             sudo docker ps -a || true; \
-             echo '📋 检查网络连接:'; \
-             /tmp/network-diagnosis.sh || true; \
-             exit 1; \
-           }" \
-             tail -50 /var/log/syslog || true; \
-             exit 1; \
-           }"
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          export SERVER_IP=\"$SERVER_IP\"
+          export SILICONFLOW_API_KEY=\"$SILICONFLOW_API_KEY\"
+          export JWT_SECRET_KEY=\"$JWT_SECRET_KEY\"
+          export REDIS_PASSWORD=\"$REDIS_PASSWORD\"
+          export DATABASE_PASSWORD=\"\${DATABASE_PASSWORD:-Lekairong350702}\"
+          export DATABASE_NOVELUSER_PASSWORD=\"\${DATABASE_NOVELUSER_PASSWORD:-Lekairong350702}\"
+          export GITHUB_REPOSITORY=\"${{ github.repository }}\"
+          chmod +x /tmp/quick-deploy.sh
+          timeout 1800 /tmp/quick-deploy.sh || {
+            echo '❌ 部署超时或失败'
+            echo '📋 检查 Docker 服务状态:'
+            sudo systemctl status docker || true
+            echo '📋 检查容器状态:'
+            sudo docker ps -a || true
+            echo '📋 检查网络连接:'
+            /tmp/network-diagnosis.sh || true
+            tail -50 /var/log/syslog || true
+            exit 1
+          }
+        "
 
     - name: Verify deployment
       run: |
