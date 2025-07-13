@@ -20,57 +20,20 @@ else
     echo "   ❌ DNS解析失败"
 fi
 
-# 2. Docker Hub 连接测试
+
+# 2. 仅检测百度云镜像源
 echo ""
-echo "🐳 2. Docker Hub 连接测试"
-echo "   测试Docker Hub域名解析..."
-if nslookup registry-1.docker.io > /dev/null 2>&1; then
-    echo "   ✅ Docker Hub域名解析正常"
-    
-    echo "   测试Docker Hub连接..."
-    if curl -s --connect-timeout 10 https://registry-1.docker.io/v2/ > /dev/null; then
-        echo "   ✅ Docker Hub连接正常"
-    else
-        echo "   ❌ Docker Hub连接失败"
-    fi
+echo "🐳 2. 百度云镜像源连接测试"
+echo "   测试 mirror.baidubce.com..."
+if curl -s --connect-timeout 8 https://mirror.baidubce.com/v2/ > /dev/null; then
+    echo "   ✅ mirror.baidubce.com 可用"
 else
-    echo "   ❌ Docker Hub域名解析失败"
+    echo "   ❌ mirror.baidubce.com 不可用"
 fi
-
-# 3. 镜像源测试
-echo ""
-echo "🌐 3. 镜像源连接测试"
-MIRRORS=(
-    "registry.cn-hangzhou.aliyuncs.com"
-    "docker.mirrors.ustc.edu.cn"
-    "hub-mirror.c.163.com"
-)
-
-for mirror in "${MIRRORS[@]}"; do
-    echo "   测试 $mirror..."
-    if curl -s --connect-timeout 5 "https://$mirror/v2/" > /dev/null 2>&1; then
-        echo "   ✅ $mirror 可用"
-    else
-        echo "   ❌ $mirror 不可用"
-    fi
-done
 
 # 4. Docker服务状态
 echo ""
 echo "🔧 4. Docker服务状态"
-if systemctl is-active --quiet docker; then
-    echo "   ✅ Docker服务运行中"
-    
-    echo "   Docker配置："
-    if [ -f /etc/docker/daemon.json ]; then
-        echo "   当前配置："
-        cat /etc/docker/daemon.json | jq . 2>/dev/null || cat /etc/docker/daemon.json
-    else
-        echo "   使用默认配置"
-    fi
-else
-    echo "   ❌ Docker服务未运行"
-fi
 
 # 5. 镜像拉取测试
 echo ""

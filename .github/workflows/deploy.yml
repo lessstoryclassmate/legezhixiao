@@ -74,7 +74,6 @@ jobs:
           timeout 1800 /tmp/quick-deploy.sh || {
             echo '❌ 部署超时或失败'
             echo '📋 检查 Docker 服务状态:'
-            sudo systemctl status docker || true
             echo '📋 检查容器状态:'
             sudo docker ps -a || true
             echo '📋 检查网络连接:'

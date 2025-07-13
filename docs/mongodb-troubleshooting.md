@@ -10,14 +10,14 @@ CI/CD 部署过程中出现 MongoDB 连接超时错误：`MongoDB 连接失败: 
 
 #### 检查 MongoDB 服务状态
 ```bash
-# 检查 MongoDB 服务是否运行
-sudo systemctl status mongod
-
-# 如果服务未运行，启动服务
-sudo systemctl start mongod
-
-# 设置开机自启
-sudo systemctl enable mongod
+# 检查 MongoDB 服务是否运行（容器环境推荐用 Docker Compose 管理）
+if docker-compose ps mongodb | grep -q 'Up'; then
+    echo "✅ MongoDB 服务运行中"
+else
+    echo "❌ MongoDB 服务未运行"
+    exit 1
+fi
+# 如未运行，可用 docker-compose up -d mongodb 启动
 ```
 
 #### 检查端口监听状态
@@ -55,7 +55,7 @@ net:
 
 修改后重启服务：
 ```bash
-sudo systemctl restart mongod
+docker-compose restart mongodb
 ```
 
 ### 2. 防火墙和安全组检查
@@ -121,8 +121,9 @@ timeout 10 bash -c "echo > /dev/tcp/172.16.32.2/27017"
 # 查看 MongoDB 日志
 sudo tail -f /var/log/mongodb/mongod.log
 
-# 查看系统日志中的 MongoDB 相关信息
-sudo journalctl -u mongod -f
+# 查看系统日志中的 MongoDB 相关信息（如为物理机服务）
+# 容器环境请用 docker logs <mongodb容器名>
+docker logs $(docker-compose ps -q mongodb)
 ```
 
 **常见错误模式**：
@@ -177,7 +178,7 @@ mongo --host 172.16.32.2 --port 27017
 
 重启服务：
 ```bash
-sudo systemctl restart mongod
+docker-compose restart mongodb
 ```
 
 ### 7. 应用层连接测试
@@ -226,7 +227,7 @@ net:
   bindIp: 0.0.0.0
 
 # 3. 重启服务
-sudo systemctl restart mongod
+docker-compose restart mongodb
 ```
 
 #### 方案 2: 配置防火墙规则
@@ -265,7 +266,7 @@ mongodb:
 echo "MongoDB 健康检查 - $(date)"
 
 # 检查服务状态
-if systemctl is-active --quiet mongod; then
+if docker-compose ps mongodb | grep -q 'Up'; then
     echo "✅ MongoDB 服务运行中"
 else
     echo "❌ MongoDB 服务未运行"
@@ -306,7 +307,7 @@ crontab -e
 
 1. **重启 MongoDB 服务**：
    ```bash
-   sudo systemctl restart mongod
+   docker-compose restart mongodb
    ```
 
 2. **重置配置文件**：

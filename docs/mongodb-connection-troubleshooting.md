@@ -9,12 +9,9 @@ CI/CD 部署时后端容器无法连接 MongoDB (`172.16.32.2:27017`)，报错 "
 ### 1. 检查 MongoDB 服务状态
 
 ```bash
-# 检查 MongoDB 服务是否运行
-sudo systemctl status mongod
-
-# 如果未运行，启动服务
-sudo systemctl start mongod
-sudo systemctl enable mongod
+# 检查 MongoDB 服务是否运行（容器环境推荐用 Docker Compose 管理）
+docker-compose ps mongodb
+# 如未运行，可用 docker-compose up -d mongodb 启动
 ```
 
 ### 2. 检查 MongoDB 网络绑定
@@ -49,8 +46,9 @@ net:
 修改后重启 MongoDB：
 
 ```bash
-sudo systemctl restart mongod
-sudo systemctl status mongod
+# 容器环境下重启 MongoDB
+docker-compose restart mongodb
+docker-compose ps mongodb
 ```
 
 ### 4. 检查防火墙设置
@@ -102,7 +100,7 @@ security:
 
 2. **重启服务**：
 ```bash
-sudo systemctl restart mongod
+docker-compose restart mongodb
 ```
 
 ### 方案 2: 使用 Host 网络模式 (临时解决)
@@ -139,7 +137,7 @@ mongodb:
 
 ## 故障排除检查清单
 
-- [ ] MongoDB 服务已启动 (`systemctl status mongod`)
+- [ ] MongoDB 服务已启动（`docker-compose ps mongodb`）
 - [ ] MongoDB 监听正确地址 (`netstat -tlnp | grep 27017`)
 - [ ] 防火墙允许 27017 端口
 - [ ] 云安全组允许内网访问 27017 端口
@@ -157,7 +155,7 @@ echo "=== MongoDB 连接验证 ==="
 
 # 检查服务状态
 echo "1. 检查 MongoDB 服务状态..."
-sudo systemctl is-active mongod || echo "MongoDB 服务未运行"
+docker-compose ps mongodb || echo "MongoDB 服务未运行"
 
 # 检查端口监听
 echo "2. 检查端口监听..."

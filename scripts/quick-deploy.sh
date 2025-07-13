@@ -37,37 +37,8 @@ sudo tee /etc/docker/daemon.json > /dev/null <<EOF
   ]
 }
 EOF
-sudo systemctl daemon-reload
-sudo systemctl restart docker
 echo "✅ Docker 镜像加速器已配置为百度云"
 sleep 10
-
-# 重启Docker服务
-echo "🔄 重启Docker服务..."
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-
-# 等待Docker服务完全启动
-echo "⏳ 等待Docker服务启动..."
-sleep 10
-
-# 验证Docker是否正常工作
-echo "🔍 验证Docker服务状态..."
-max_retries=3
-for i in $(seq 1 $max_retries); do
-    if sudo docker info > /dev/null 2>&1; then
-        echo "✅ Docker服务正常运行"
-        break
-    else
-        echo "⚠️  Docker服务检查失败，重试 $i/$max_retries..."
-        if [ $i -eq $max_retries ]; then
-            echo "❌ Docker服务启动失败"
-            sudo systemctl status docker
-            exit 1
-        fi
-        sleep 5
-    fi
-done
 
 # 1. 停止现有服务
 echo "⏹️  停止现有服务..."

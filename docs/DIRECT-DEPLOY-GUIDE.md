@@ -104,7 +104,7 @@ docker --version
 docker-compose --version
 
 # 检查Docker服务状态
-sudo systemctl status docker
+请用 docker info 或 docker-compose ps 检查 Docker 状态。
 
 # 测试Docker权限
 docker ps

@@ -267,7 +267,7 @@ ssh-keygen -t ed25519 -C "deploy@github-actions"
 # 确保服务器SSH配置正确
 sudo nano /etc/ssh/sshd_config
 # 设置: PubkeyAuthentication yes
-sudo systemctl restart sshd
+如需重启 SSH 服务请参考系统文档，所有业务服务推荐用 Docker Compose 管理。
 ```
 
 ### 2. 部署超时
