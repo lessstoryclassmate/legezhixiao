@@ -13,19 +13,22 @@ GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
 
 
 # 0. 配置百度云和阿里云 Docker 镜像加速器（中国大陆推荐）
-echo "🐳 配置百度云和阿里云 Docker 镜像加速器..."
+echo "🌐 修复 DNS 配置为阿里公共 DNS..."
+sudo bash -c 'echo "nameserver 223.5.5.5" > /etc/resolv.conf'
+echo "✅ DNS 已设置为 223.5.5.5 (阿里公共 DNS)"
+
+echo "🐳 配置百度云 Docker 镜像加速器..."
 sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
   "registry-mirrors": [
-    "https://mirror.baidubce.com",
-    "https://registry.cn-hangzhou.aliyuncs.com"
+    "https://mirror.baidubce.com"
   ]
 }
 EOF
 sudo systemctl daemon-reload
 sudo systemctl restart docker
-echo "✅ Docker 镜像加速器已配置为百度云+阿里云"
+echo "✅ Docker 镜像加速器已配置为百度云"
 sleep 10
 
 # 重启Docker服务
@@ -135,70 +138,7 @@ if ! sudo docker-compose -f docker-compose.production.yml config > /dev/null; th
     exit 1
 fi
 
-# 6. 拉取Docker镜像 (简化重试策略)
-echo "📦 拉取Docker镜像..."
-
-# 定义所需的基础镜像
-BASE_IMAGES=(
-    "node:18-alpine"
-    "python:3.11-slim"
-    "nginx:alpine"
-)
-
-# 简化的镜像拉取函数
-pull_image_simple() {
-    local image=$1
-    echo "🔄 拉取镜像: $image"
-    
-    # 尝试拉取镜像，最多重试2次
-    for attempt in 1 2; do
-        echo "   尝试 $attempt/2..."
-        
-        if timeout 180 sudo docker pull "$image" 2>/dev/null; then
-            echo "   ✅ $image 拉取成功"
-            return 0
-        else
-            echo "   ❌ $image 拉取失败"
-            if [ $attempt -eq 1 ]; then
-                echo "   ⏳ 清理缓存后重试..."
-                sudo docker system prune -f > /dev/null 2>&1 || true
-                sleep 5
-            fi
-        fi
-    done
-    
-    echo "   ❌ $image 最终拉取失败"
-    return 1
-}
-
-# 测试基础镜像拉取
-echo "🔍 测试基础镜像拉取..."
-failed_images=()
-for image in "${BASE_IMAGES[@]}"; do
-    if ! pull_image_simple "$image"; then
-        failed_images+=("$image")
-    fi
-done
-
-# 根据拉取结果决定策略
-if [ ${#failed_images[@]} -eq 0 ]; then
-    echo "✅ 所有基础镜像拉取成功"
-    echo "🔄 拉取应用依赖镜像..."
-    sudo docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || {
-        echo "⚠️  应用镜像拉取失败，将使用本地构建"
-    }
-elif [ ${#failed_images[@]} -eq ${#BASE_IMAGES[@]} ]; then
-    echo "❌ 所有基础镜像拉取失败"
-    echo "🔧 网络连接问题，请检查："
-    echo "   1. 服务器网络连接"
-    echo "   2. DNS 配置"
-    echo "   3. 防火墙设置"
-    echo "   4. Docker 配置"
-    exit 1
-else
-    echo "⚠️  部分镜像拉取失败: ${failed_images[*]}"
-    echo "🔄 将在构建时处理失败的镜像..."
-fi
+echo "📦 跳过 Docker Hub 镜像拉取，仅使用国内镜像源构建..."
 
 # 7. 构建并启动服务
 echo "🏗️  构建并启动服务..."
