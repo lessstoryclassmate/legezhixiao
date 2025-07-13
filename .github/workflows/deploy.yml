@@ -54,10 +54,15 @@ jobs:
       run: |
         # 上传部署相关脚本
         scp scripts/quick-deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
-        scp scripts/check-docker-images.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
-        scp scripts/docker-image-alternatives.conf ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/network-diagnosis.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        
+        # 执行网络诊断
+        echo "🔍 执行网络诊断..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+          "chmod +x /tmp/network-diagnosis.sh && /tmp/network-diagnosis.sh"
         
         # 执行部署
+        echo "🚀 开始部署..."
         ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
           "export SERVER_IP=\"$SERVER_IP\" && \
            export SILICONFLOW_API_KEY=\"$SILICONFLOW_API_KEY\" && \
@@ -66,18 +71,17 @@ jobs:
            export DATABASE_PASSWORD=\"\${DATABASE_PASSWORD:-Lekairong350702}\" && \
            export DATABASE_NOVELUSER_PASSWORD=\"\${DATABASE_NOVELUSER_PASSWORD:-Lekairong350702}\" && \
            export GITHUB_REPOSITORY=\"${{ github.repository }}\" && \
-           export DOCKER_HUB_ACCESSIBLE=\"$DOCKER_HUB_ACCESSIBLE\" && \
-           chmod +x /tmp/quick-deploy.sh /tmp/check-docker-images.sh && \
-           echo '🔍 预检查 Docker 镜像可用性...' && \
-           /tmp/check-docker-images.sh || echo '⚠️  镜像检查发现问题，部署脚本将尝试解决' && \
-           echo '🚀 开始部署...' && \
+           chmod +x /tmp/quick-deploy.sh && \
            timeout 1800 /tmp/quick-deploy.sh || { \
              echo '❌ 部署超时或失败'; \
              echo '📋 检查 Docker 服务状态:'; \
              sudo systemctl status docker || true; \
              echo '📋 检查容器状态:'; \
              sudo docker ps -a || true; \
-             echo '📋 检查部署日志:'; \
+             echo '📋 检查网络连接:'; \
+             /tmp/network-diagnosis.sh || true; \
+             exit 1; \
+           }" \
              tail -50 /var/log/syslog || true; \
              exit 1; \
            }"

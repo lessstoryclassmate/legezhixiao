@@ -11,41 +11,60 @@ PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
 
-# 0. 配置Docker镜像加速器和网络优化
-echo "🐳 配置Docker镜像加速器和网络优化..."
+# 0. 配置Docker并验证网络连接
+echo "🐳 配置Docker环境..."
 sudo mkdir -p /etc/docker
 
-# 检测地区并配置相应的镜像源
-echo "🔍 检测 Docker Hub 连接性..."
-if curl -s --connect-timeout 5 --max-time 10 https://registry-1.docker.io/v2/ > /dev/null 2>&1; then
-    echo "✅ Docker Hub 可直接访问，配置加速器以提高速度"
-    # 即使可访问也配置加速器以提高速度和稳定性
-    MIRRORS='"https://docker.mirrors.ustc.edu.cn", "https://registry.docker-cn.com", "https://hub-mirror.c.163.com"'
+# 检查网络连接性
+echo "🔍 检查网络连接性..."
+DOCKER_HUB_REACHABLE=false
+DNS_WORKING=false
+
+# 测试DNS解析
+if nslookup registry-1.docker.io > /dev/null 2>&1; then
+    echo "✅ DNS解析正常"
+    DNS_WORKING=true
 else
-    echo "⚠️  Docker Hub 访问受限，配置多个镜像源..."
-    # 配置多个国内镜像源，提高成功率
-    MIRRORS='"https://docker.mirrors.ustc.edu.cn", "https://hub-mirror.c.163.com", "https://registry.cn-hangzhou.aliyuncs.com", "https://registry.docker-cn.com", "https://dockerproxy.com", "https://mirror.baidubce.com"'
+    echo "❌ DNS解析失败"
 fi
 
-sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+# 测试Docker Hub连接
+if [ "$DNS_WORKING" = true ] && curl -s --connect-timeout 10 --max-time 15 https://registry-1.docker.io/v2/ > /dev/null 2>&1; then
+    echo "✅ Docker Hub 可访问"
+    DOCKER_HUB_REACHABLE=true
+else
+    echo "⚠️  Docker Hub 访问受限"
+fi
+
+# 配置Docker daemon - 使用最简配置避免DNS问题
+if [ "$DOCKER_HUB_REACHABLE" = true ]; then
+    echo "🔧 使用标准Docker配置..."
+    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
-  "registry-mirrors": [
-    ${MIRRORS}
-  ],
-  "max-concurrent-downloads": 10,
-  "max-concurrent-uploads": 5,
+  "max-concurrent-downloads": 3,
+  "max-concurrent-uploads": 3,
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "100m",
     "max-file": "3"
-  },
-  "storage-driver": "overlay2",
-  "experimental": false,
-  "features": {
-    "buildkit": true
   }
 }
 EOF
+else
+    echo "🔧 尝试使用阿里云镜像（仅一个可靠源）..."
+    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+  "registry-mirrors": ["https://registry.cn-hangzhou.aliyuncs.com"],
+  "max-concurrent-downloads": 3,
+  "max-concurrent-uploads": 3,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m",
+    "max-file": "3"
+  }
+}
+EOF
+fi
 
 # 重启Docker服务
 echo "🔄 重启Docker服务..."
@@ -53,16 +72,26 @@ sudo systemctl daemon-reload
 sudo systemctl restart docker
 
 # 等待Docker服务完全启动
-sleep 5
+echo "⏳ 等待Docker服务启动..."
+sleep 10
 
 # 验证Docker是否正常工作
 echo "🔍 验证Docker服务状态..."
-if ! sudo docker info > /dev/null 2>&1; then
-    echo "❌ Docker服务启动失败"
-    exit 1
-fi
-
-echo "✅ Docker服务配置完成"
+max_retries=3
+for i in $(seq 1 $max_retries); do
+    if sudo docker info > /dev/null 2>&1; then
+        echo "✅ Docker服务正常运行"
+        break
+    else
+        echo "⚠️  Docker服务检查失败，重试 $i/$max_retries..."
+        if [ $i -eq $max_retries ]; then
+            echo "❌ Docker服务启动失败"
+            sudo systemctl status docker
+            exit 1
+        fi
+        sleep 5
+    fi
+done
 
 # 1. 停止现有服务
 echo "⏹️  停止现有服务..."
@@ -144,8 +173,8 @@ if ! sudo docker-compose -f docker-compose.production.yml config > /dev/null; th
     exit 1
 fi
 
-# 6. 预拉取基础镜像 (使用强化重试机制)
-echo "📦 预拉取基础镜像..."
+# 6. 拉取Docker镜像 (简化重试策略)
+echo "📦 拉取Docker镜像..."
 
 # 定义所需的基础镜像
 BASE_IMAGES=(
@@ -154,103 +183,88 @@ BASE_IMAGES=(
     "nginx:alpine"
 )
 
-# 拉取基础镜像的函数
-pull_image_with_retry() {
+# 简化的镜像拉取函数
+pull_image_simple() {
     local image=$1
-    local max_attempts=3
-    
     echo "🔄 拉取镜像: $image"
     
-    for attempt in $(seq 1 $max_attempts); do
-        echo "   尝试 $attempt/$max_attempts..."
+    # 尝试拉取镜像，最多重试2次
+    for attempt in 1 2; do
+        echo "   尝试 $attempt/2..."
         
-        if timeout 300 sudo docker pull "$image"; then
+        if timeout 180 sudo docker pull "$image" 2>/dev/null; then
             echo "   ✅ $image 拉取成功"
             return 0
         else
             echo "   ❌ $image 拉取失败"
-            if [ $attempt -lt $max_attempts ]; then
-                local wait_time=$((attempt * 5))
-                echo "   ⏳ 等待 ${wait_time}s 后重试..."
-                sleep $wait_time
-                
-                # 清理可能的残留下载
+            if [ $attempt -eq 1 ]; then
+                echo "   ⏳ 清理缓存后重试..."
                 sudo docker system prune -f > /dev/null 2>&1 || true
+                sleep 5
             fi
         fi
     done
     
-    echo "   ❌ $image 拉取失败"
+    echo "   ❌ $image 最终拉取失败"
     return 1
 }
 
-# 预拉取所有基础镜像
+# 测试基础镜像拉取
+echo "🔍 测试基础镜像拉取..."
 failed_images=()
 for image in "${BASE_IMAGES[@]}"; do
-    if ! pull_image_with_retry "$image"; then
+    if ! pull_image_simple "$image"; then
         failed_images+=("$image")
     fi
 done
 
-# 如果有镜像拉取失败，尝试直接使用 docker-compose 构建
-if [ ${#failed_images[@]} -gt 0 ]; then
-    echo "⚠️  以下镜像拉取失败: ${failed_images[*]}"
-    echo "🔄 将在构建阶段处理镜像问题..."
-else
+# 根据拉取结果决定策略
+if [ ${#failed_images[@]} -eq 0 ]; then
     echo "✅ 所有基础镜像拉取成功"
-    # 现在拉取应用镜像
-    sudo docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || echo "⚠️  应用镜像拉取失败，将使用构建模式"
+    echo "🔄 拉取应用依赖镜像..."
+    sudo docker-compose -f docker-compose.production.yml pull --ignore-pull-failures || {
+        echo "⚠️  应用镜像拉取失败，将使用本地构建"
+    }
+elif [ ${#failed_images[@]} -eq ${#BASE_IMAGES[@]} ]; then
+    echo "❌ 所有基础镜像拉取失败"
+    echo "🔧 网络连接问题，请检查："
+    echo "   1. 服务器网络连接"
+    echo "   2. DNS 配置"
+    echo "   3. 防火墙设置"
+    echo "   4. Docker 配置"
+    exit 1
+else
+    echo "⚠️  部分镜像拉取失败: ${failed_images[*]}"
+    echo "🔄 将在构建时处理失败的镜像..."
 fi
 
-# 7. 构建并启动服务 (增强错误处理)
+# 7. 构建并启动服务
 echo "🏗️  构建并启动服务..."
 
-# 尝试不同的构建策略
-echo "🔄 尝试标准构建模式..."
-if sudo docker-compose -f docker-compose.production.yml up -d --build; then
-    echo "✅ 标准构建成功"
-else
-    echo "❌ 标准构建失败，尝试单独构建..."
-    
-    # 尝试分别构建每个服务
-    echo "🔄 分别构建各个服务..."
-    
-    # 构建后端
-    echo "  📦 构建后端服务..."
-    if ! sudo docker-compose -f docker-compose.production.yml build backend; then
-        echo "  ❌ 后端构建失败"
-        # 检查是否可以使用预构建镜像
-        echo "  🔄 尝试使用无缓存构建..."
-        sudo docker-compose -f docker-compose.production.yml build --no-cache backend || {
-            echo "  ❌ 后端无缓存构建也失败"
-            exit 1
-        }
-    fi
-    
-    # 构建前端
-    echo "  🎨 构建前端服务..."
-    if ! sudo docker-compose -f docker-compose.production.yml build frontend; then
-        echo "  ❌ 前端构建失败"
-        echo "  🔄 尝试使用无缓存构建..."
-        sudo docker-compose -f docker-compose.production.yml build --no-cache frontend || {
-            echo "  ❌ 前端无缓存构建也失败"
-            exit 1
-        }
-    fi
-    
-    # 启动所有服务
-    echo "  🚀 启动所有服务..."
-    sudo docker-compose -f docker-compose.production.yml up -d || {
-        echo "❌ 服务启动失败"
-        echo "📋 检查服务状态："
-        sudo docker-compose -f docker-compose.production.yml ps
-        echo "📋 检查服务日志："
-        sudo docker-compose -f docker-compose.production.yml logs --tail=50
-        exit 1
-    }
-fi
+# 显示当前Docker配置
+echo "� 当前Docker配置："
+sudo docker info | grep -E "(Registry|Mirrors)" || echo "  使用默认配置"
 
-echo "✅ 服务构建和启动完成"
+# 尝试构建和启动
+echo "🔄 开始构建服务..."
+if sudo docker-compose -f docker-compose.production.yml up -d --build 2>&1 | tee /tmp/docker-build.log; then
+    echo "✅ 服务构建和启动成功"
+else
+    echo "❌ 服务构建失败"
+    echo "� 构建日志："
+    tail -20 /tmp/docker-build.log
+    echo ""
+    echo "🔍 检查Docker网络连接..."
+    if ! curl -s --connect-timeout 5 https://registry-1.docker.io/v2/ > /dev/null; then
+        echo "❌ Docker Hub 无法访问"
+        echo "💡 建议检查："
+        echo "   1. 网络连接: ping 8.8.8.8"
+        echo "   2. DNS配置: nslookup registry-1.docker.io"
+        echo "   3. 防火墙设置"
+        echo "   4. 代理配置"
+    fi
+    exit 1
+fi
 
 # 8. 等待服务启动并验证
 echo "⏳ 等待服务启动..."
