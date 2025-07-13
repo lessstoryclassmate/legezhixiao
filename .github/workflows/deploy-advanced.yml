@@ -204,54 +204,78 @@ jobs:
           export SERVER_IP="${{ secrets.HOST }}"
           export GITHUB_REPOSITORY="${{ github.repository }}"
           
-          # 首先运行 systemd 清理脚本
-          echo "🧹 执行 systemd 清理..."
-          if [ -f "/opt/ai-novel-editor/scripts/cleanup-systemd.sh" ]; then
-            sudo bash /opt/ai-novel-editor/scripts/cleanup-systemd.sh || true
-          fi
-          
-          # 创建临时部署脚本（集成DNS修复和systemd清理）
-          cat > /tmp/deploy.sh << 'EOF'
+          # 创建增强部署脚本
+          cat > /tmp/enhanced-deploy.sh << 'EOF'
           #!/bin/bash
           set -e
           
           echo "🚀 开始增强部署流程..."
           
-          # 修复 DNS（解决镜像拉取失败）
-          echo "🌐 修复 DNS 配置..."
-          sudo bash -c 'echo -e "nameserver 223.5.5.5\nnameserver 180.76.76.76\nnameserver 8.8.8.8" > /etc/resolv.conf'
+          # 1. 立即修复 DNS（第一优先级）
+          echo "🌐 立即修复 DNS 配置..."
+          sudo bash -c 'echo -e "nameserver 223.5.5.5\nnameserver 8.8.8.8" > /etc/resolv.conf'
+          echo "✅ DNS 已设置为阿里云和 Google DNS"
           
-          # 验证网络连通性
-          echo "🔍 验证网络连通性..."
-          if ! ping -c 2 mirror.baidubce.com > /dev/null 2>&1; then
-            echo "⚠️ 百度镜像源网络不通，尝试其他 DNS..."
-            sudo bash -c 'echo -e "nameserver 8.8.8.8\nnameserver 223.5.5.5" > /etc/resolv.conf'
-          fi
+          # 2. 彻底清理 systemd 冲突（第二优先级）
+          echo "🧹 彻底清理 systemd 服务冲突..."
           
-          # 彻底清理 systemd 服务冲突
-          echo "🧹 清理 systemd 服务冲突..."
-          for service in ai-novel-editor novel-editor backend frontend; do
-            sudo systemctl stop $service 2>/dev/null || true
-            sudo systemctl disable $service 2>/dev/null || true
-            sudo rm -f /etc/systemd/system/$service.service 2>/dev/null || true
+          # 停止所有可能冲突的服务
+          for service in ai-novel-editor ai-novel-editor.service novel-editor backend frontend; do
+            if systemctl list-unit-files | grep -q "^$service"; then
+              echo "🛑 停止服务: $service"
+              sudo systemctl stop $service 2>/dev/null || true
+              sudo systemctl disable $service 2>/dev/null || true
+            fi
+            
+            # 强制停止正在运行的服务
+            if systemctl is-active --quiet $service 2>/dev/null; then
+              echo "🛑 强制停止: $service"
+              sudo systemctl stop $service || true
+            fi
+            
+            # 移除服务文件
+            for path in /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system; do
+              if [ -f "$path/$service" ]; then
+                echo "🗑️ 移除: $path/$service"
+                sudo rm -f "$path/$service"
+              fi
+            done
           done
+          
+          # 重新加载 systemd
           sudo systemctl daemon-reload || true
           sudo systemctl reset-failed || true
+          echo "✅ systemd 清理完成"
           
-          # 下载并执行部署脚本
-          echo "📥 下载最新部署脚本..."
+          # 3. 验证网络连通性
+          echo "🔍 验证网络连通性..."
+          if nslookup github.com > /dev/null 2>&1; then
+            echo "✅ 网络连通性正常"
+          else
+            echo "❌ 网络连通性异常，尝试其他 DNS..."
+            sudo bash -c 'echo -e "nameserver 8.8.8.8\nnameserver 114.114.114.114" > /etc/resolv.conf'
+          fi
+          
+          # 4. 下载并执行修复版部署脚本
+          echo "📥 下载修复版部署脚本..."
           cd /tmp
           rm -f quick-deploy.sh
-          curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/scripts/quick-deploy.sh -o quick-deploy.sh
-          chmod +x quick-deploy.sh
           
-          # 执行部署
-          echo "🚀 执行部署..."
-          bash quick-deploy.sh
+          if curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/scripts/quick-deploy.sh -o quick-deploy.sh; then
+            echo "✅ 部署脚本下载成功"
+            chmod +x quick-deploy.sh
+            
+            # 执行部署
+            echo "🚀 执行修复版部署脚本..."
+            bash quick-deploy.sh
+          else
+            echo "❌ 部署脚本下载失败"
+            exit 1
+          fi
           EOF
           
-          chmod +x /tmp/deploy.sh
-          bash /tmp/deploy.sh
+          chmod +x /tmp/enhanced-deploy.sh
+          bash /tmp/enhanced-deploy.sh
 
     - name: Wait for services to start
       run: |
