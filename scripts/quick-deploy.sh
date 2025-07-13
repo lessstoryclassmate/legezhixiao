@@ -11,60 +11,22 @@ PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
 
-# 0. 配置Docker并验证网络连接
-echo "🐳 配置Docker环境..."
+
+# 0. 配置百度云和阿里云 Docker 镜像加速器（中国大陆推荐）
+echo "🐳 配置百度云和阿里云 Docker 镜像加速器..."
 sudo mkdir -p /etc/docker
-
-# 检查网络连接性
-echo "🔍 检查网络连接性..."
-DOCKER_HUB_REACHABLE=false
-DNS_WORKING=false
-
-# 测试DNS解析
-if nslookup registry-1.docker.io > /dev/null 2>&1; then
-    echo "✅ DNS解析正常"
-    DNS_WORKING=true
-else
-    echo "❌ DNS解析失败"
-fi
-
-# 测试Docker Hub连接
-if [ "$DNS_WORKING" = true ] && curl -s --connect-timeout 10 --max-time 15 https://registry-1.docker.io/v2/ > /dev/null 2>&1; then
-    echo "✅ Docker Hub 可访问"
-    DOCKER_HUB_REACHABLE=true
-else
-    echo "⚠️  Docker Hub 访问受限"
-fi
-
-# 配置Docker daemon - 使用最简配置避免DNS问题
-if [ "$DOCKER_HUB_REACHABLE" = true ]; then
-    echo "🔧 使用标准Docker配置..."
-    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
-  "max-concurrent-downloads": 3,
-  "max-concurrent-uploads": 3,
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m",
-    "max-file": "3"
-  }
+  "registry-mirrors": [
+    "https://mirror.baidubce.com",
+    "https://registry.cn-hangzhou.aliyuncs.com"
+  ]
 }
 EOF
-else
-    echo "🔧 尝试使用阿里云镜像（仅一个可靠源）..."
-    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
-{
-  "registry-mirrors": ["https://registry.cn-hangzhou.aliyuncs.com"],
-  "max-concurrent-downloads": 3,
-  "max-concurrent-uploads": 3,
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "100m",
-    "max-file": "3"
-  }
-}
-EOF
-fi
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+echo "✅ Docker 镜像加速器已配置为百度云+阿里云"
+sleep 10
 
 # 重启Docker服务
 echo "🔄 重启Docker服务..."
