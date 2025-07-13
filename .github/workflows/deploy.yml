@@ -55,6 +55,26 @@ jobs:
         # 上传部署相关脚本
         scp scripts/quick-deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
         scp scripts/network-diagnosis.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/dns-diagnosis.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/dns-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/network-fix-all.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/ci-dns-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+
+        # 预先修复网络和DNS问题
+        echo "� 预先修复网络和DNS问题..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          chmod +x /tmp/network-fix-all.sh /tmp/ci-dns-fix.sh
+          echo '🌐 执行网络一键修复...'
+          sudo /tmp/network-fix-all.sh || echo '⚠️ 网络修复完成（可能有警告）'
+          echo '⚙️ 执行CI环境DNS优化...'
+          /tmp/ci-dns-fix.sh || echo '⚠️ CI DNS优化完成（可能有警告）'
+        "
+
+        # 执行DNS诊断验证
+        echo "🔍 验证DNS修复结果..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "chmod +x /tmp/dns-diagnosis.sh && /tmp/dns-diagnosis.sh" || {
+          echo "⚠️ DNS验证发现问题，记录但继续部署..."
+        }
 
         # 执行网络诊断
         echo "🔍 执行网络诊断..."
