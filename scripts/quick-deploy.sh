@@ -9,18 +9,62 @@ echo "🚀 开始快速部署 AI 小说编辑器..."
 # 定义变量
 PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
-GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
+GIT# 8. 构建并启动服务
+echo "🏗️  构建并启动服务..."
 
+# 显示当前Docker配置
+echo "📋 当前Docker配置："
+sudo docker info | grep -E "(Registry|Mirrors)" || echo "  使用默认配置"
+
+# 预拉取基础镜像以提高构建成功率
+echo "📦 预拉取基础镜像..."
+sudo docker pull mirror.baidubce.com/library/node:18-alpine || sudo docker pull node:18-alpine || true
+sudo docker pull mirror.baidubce.com/library/python:3.11-slim || sudo docker pull python:3.11-slim || true
+sudo docker pull mirror.baidubce.com/library/nginx:alpine || sudo docker pull nginx:alpine || true
+
+# 尝试构建和启动
+echo "🔄 开始构建服务...""https://github.com/${GITHUB_REPOSITORY}.git"
+
+# ===== 修复 DNS 和网络配置 =====
+echo "🌐 修复 DNS 配置（解决镜像拉取失败）..."
+sudo bash -c 'echo -e "nameserver 223.5.5.5\nnameserver 180.76.76.76\nnameserver 8.8.8.8" > /etc/resolv.conf'
+echo "✅ DNS 已设置为阿里云和百度公共 DNS，备用 Google DNS"
+
+# 验证 DNS 解析
+echo "🔍 验证 DNS 解析..."
+if nslookup mirror.baidubce.com > /dev/null 2>&1; then
+    echo "✅ 百度云镜像源 DNS 解析正常"
+else
+    echo "⚠️ 百度云镜像源 DNS 解析失败，尝试备用 DNS..."
+    sudo bash -c 'echo -e "nameserver 8.8.8.8\nnameserver 223.5.5.5" > /etc/resolv.conf'
+fi
+
+# ===== 清理 systemd 服务冲突 =====
+echo "🧹 清理可能的 systemd 服务冲突..."
+for service_name in "ai-novel-editor" "ai-novel-editor.service" "${PROJECT_NAME}" "${PROJECT_NAME}.service"; do
+    if sudo systemctl is-enabled "$service_name" >/dev/null 2>&1; then
+        echo "⏹️ 停止并禁用 systemd 服务: $service_name"
+        sudo systemctl stop "$service_name" || true
+        sudo systemctl disable "$service_name" || true
+    fi
+done
+
+# 移除 systemd 服务文件
+for service_file in "/etc/systemd/system/ai-novel-editor.service" "/etc/systemd/system/${PROJECT_NAME}.service"; do
+    if [ -f "$service_file" ]; then
+        echo "🗑️ 移除 systemd 服务文件: $service_file"
+        sudo rm -f "$service_file"
+    fi
+done
+
+# 重新加载 systemd
+sudo systemctl daemon-reload || true
+echo "✅ systemd 服务冲突已清理"
 
 echo "🐳 配置百度云 Docker 镜像加速器..."
 
 
-# 0. 仅配置百度云 Docker 镜像加速器（中国大陆推荐）
-echo "🌐 修复 DNS 配置为百度公共 DNS..."
-sudo bash -c 'echo "nameserver 180.76.76.76" > /etc/resolv.conf'
-echo "✅ DNS 已设置为 180.76.76.76 (百度公共 DNS)"
-
-# 只检测百度云镜像源
+# 配置百度云 Docker 镜像加速器
 echo "🌐 检查百度云镜像源可用性..."
 if curl -s --connect-timeout 8 https://mirror.baidubce.com/v2/ > /dev/null; then
     echo "✅ 百度云镜像源可访问"
@@ -126,7 +170,20 @@ fi
 
 
 
-# 7. 构建并启动服务
+# 7. 强制重启 Docker 以应用镜像配置
+echo "🔄 重启 Docker 服务以应用镜像配置..."
+sudo systemctl restart docker || true
+sleep 5
+
+# 验证 Docker 镜像配置生效
+echo "🔍 验证 Docker 镜像配置..."
+if sudo docker info | grep -q "mirror.baidubce.com"; then
+    echo "✅ Docker 镜像配置已生效"
+else
+    echo "⚠️ Docker 镜像配置可能未生效，但将继续部署"
+fi
+
+# 8. 构建并启动服务
 echo "🏗️  构建并启动服务..."
 
 # 显示当前Docker配置
@@ -144,7 +201,7 @@ else
     exit 1
 fi
 
-# 8. 等待服务启动并验证
+# 9. 等待服务启动并验证
 echo "⏳ 等待服务启动..."
 
 # 等待容器启动
@@ -240,3 +297,33 @@ echo "  查看状态: sudo docker-compose -f $DEPLOY_DIR/docker-compose.producti
 echo ""
 echo "🔧 故障排除:"
 echo "  如果服务无法访问，请检查防火墙设置和端口开放情况"
+
+# 最终状态总结
+echo ""
+echo "=================================================================================="
+if [ "$backend_healthy" = true ] && [ "$frontend_healthy" = true ]; then
+    echo "🎉 部署成功! 所有服务正常运行"
+    echo "✅ 后端服务: http://${SERVER_IP:-106.13.216.179}:8000 (健康)"
+    echo "✅ 前端服务: http://${SERVER_IP:-106.13.216.179} (健康)"
+    exit_code=0
+elif [ "$backend_healthy" = true ]; then
+    echo "🎯 部署基本成功! 后端正常，前端可能需要更多启动时间"
+    echo "✅ 后端服务: http://${SERVER_IP:-106.13.216.179}:8000 (健康)"
+    echo "⏳ 前端服务: http://${SERVER_IP:-106.13.216.179} (启动中)"
+    exit_code=0
+else
+    echo "⚠️ 部署完成但后端服务存在问题"
+    echo "❌ 后端服务: http://${SERVER_IP:-106.13.216.179}:8000 (异常)"
+    echo "❓ 前端服务: http://${SERVER_IP:-106.13.216.179} (依赖后端)"
+    echo ""
+    echo "🔧 问题诊断建议:"
+    echo "1. 检查后端日志: sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml logs backend"
+    echo "2. 检查数据库连接: 确认 MongoDB/MySQL 配置正确"
+    echo "3. 检查网络: ping 数据库服务器，确认网络连通性"
+    echo "4. 检查端口: netstat -tlnp | grep 8000"
+    exit_code=1
+fi
+echo "=================================================================================="
+echo ""
+
+exit $exit_code
