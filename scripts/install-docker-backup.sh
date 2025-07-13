@@ -18,11 +18,11 @@ echo "架构: $(uname -m)"
 # 更新系统包
 echo ""
 echo "📦 更新系统包..."
-sudo apt-get update -y
+sudo apt-get update
 
-# 安装必要依赖
+# 安装必要的依赖包
 echo ""
-echo "🔧 安装必要依赖..."
+echo "🔧 安装必要的依赖包..."
 sudo apt-get install -y \
     apt-transport-https \
     ca-certificates \
@@ -36,25 +36,9 @@ echo ""
 echo "🐳 检查Docker安装状态..."
 if command -v docker &> /dev/null; then
     echo "✅ Docker已安装: $(docker --version)"
-    echo "请确保 Docker 已经启动。建议使用 Docker Compose 管理所有服务。"
-else
-    echo "❌ Docker未安装，开始安装..."
     
-    # 添加Docker官方GPG密钥
-    echo "🔑 添加Docker官方GPG密钥..."
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    
-    # 设置稳定版仓库
-    echo "📚 设置Docker仓库..."
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    # 更新包索引
-    sudo apt-get update
-    
-    # 安装Docker Engine
-    echo "🚀 安装Docker Engine..."
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-fi
+    # 检查Docker服务状态
+        echo "请确保 Docker 已经启动。建议使用 Docker Compose 管理所有服务。"
 
 # 检查Docker Compose是否已安装
 echo ""
@@ -63,33 +47,36 @@ if command -v docker-compose &> /dev/null; then
     echo "✅ Docker Compose已安装: $(docker-compose --version)"
 else
     echo "❌ Docker Compose未安装，开始安装..."
-    echo "Docker服务状态: '未知' (已移除 systemctl 检查，请用 docker info 检查状态)"
-    
+echo "Docker服务状态: '未知' (已移除 systemctl 检查，请用 docker info 检查状态)"
     # 获取最新版本号
     echo "🔍 获取Docker Compose最新版本..."
     DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
     echo "📋 最新版本: $DOCKER_COMPOSE_VERSION"
     
     # 下载Docker Compose
-    echo "⬇️ 下载Docker Compose..."
+    echo "⬬ 下载Docker Compose..."
     sudo curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     
     # 添加执行权限
     sudo chmod +x /usr/local/bin/docker-compose
     
-    # 创建符号链接
+    # 创建符号链接到/usr/bin
     sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
     
-    echo "✅ Docker Compose安装完成"
+    echo "✅ Docker Compose安装完成: $(docker-compose --version)"
 fi
 
-# 配置用户权限（如果不是root用户）
-CURRENT_USER=${SUDO_USER:-$USER}
-if [ "$CURRENT_USER" != "root" ]; then
-    echo ""
-    echo "👤 配置用户权限..."
+# 配置用户权限
+echo ""
+echo "👤 配置用户权限..."
+CURRENT_USER=$(whoami)
+if groups $CURRENT_USER | grep -q docker; then
+    echo "✅ 用户 $CURRENT_USER 已在docker组中"
+else
+    echo "🔧 将用户 $CURRENT_USER 添加到docker组..."
     sudo usermod -aG docker $CURRENT_USER
-    echo "✅ 用户 $CURRENT_USER 已添加到docker组"
+    echo "✅ 用户已添加到docker组"
+    echo "⚠️ 请重新登录或运行 'newgrp docker' 使权限生效"
 fi
 
 # 测试Docker命令
@@ -133,3 +120,4 @@ echo "4. 现在可以运行AI小说编辑器的部署脚本了"
 
 echo ""
 echo "✅ Docker和Docker Compose安装配置完成！"
+

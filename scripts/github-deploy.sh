@@ -32,7 +32,11 @@ warning() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}" | tee -a "$LOG_FILE"
 }
 
-# 检查系统环境
+# 安装基础依赖
+install_dependencies() {
+    log "安装基础依赖..."
+    sudo apt-get update -y
+    sudo apt-get install -y \
         apt-transport-https \
         ca-certificates \
         gnupg \

@@ -13,7 +13,12 @@ echo "Docker Compose版本: $(docker-compose --version 2>/dev/null || echo "❌ 
 echo ""
 echo "🔍 检查Docker服务状态..."
 echo "✅ Docker服务状态检查已移除，建议使用 Docker Compose 进行管理。"
-echo "✅ Docker服务状态检查已移除，建议使用 Docker Compose 进行管理。"
+
+# 检查Docker命令权限
+echo ""
+echo "🔍 检查Docker命令权限..."
+if docker ps >/dev/null 2>&1; then
+  echo "✅ 无需sudo权限运行docker"
   DOCKER_CMD="docker"
   COMPOSE_CMD="docker-compose"
 elif sudo docker ps >/dev/null 2>&1; then
