@@ -170,7 +170,11 @@ git config --global user.email "deploy@example.com" || true
 echo "✅ SSH Git认证配置完成"
 
 echo "📥 克隆最新代码..."
+
+# 确保目标目录存在并有正确权限
 sudo mkdir -p "$DEPLOY_DIR"
+sudo chown -R $USER:$USER "$DEPLOY_DIR"
+
 cd /tmp
 rm -rf ai-novel-editor-clone
 
@@ -181,8 +185,24 @@ git config --global http.lowSpeedTime 999999
 
 if git clone "$GITHUB_REPO" ai-novel-editor-clone; then
     echo "✅ 代码克隆成功"
-    sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
+    
+    # 确保克隆的内容完整复制，包括隐藏文件
+    sudo rm -rf "$DEPLOY_DIR"/*
+    sudo rm -rf "$DEPLOY_DIR"/.[^.]*
+    sudo cp -r ai-novel-editor-clone/. "$DEPLOY_DIR"/
     sudo chown -R $USER:$USER "$DEPLOY_DIR"
+    
+    # 验证关键文件是否存在
+    if [ ! -f "$DEPLOY_DIR/docker-compose.production.yml" ]; then
+        echo "❌ 关键文件 docker-compose.production.yml 丢失"
+        echo "📁 部署目录内容："
+        ls -la "$DEPLOY_DIR"
+        exit 1
+    else
+        echo "✅ docker-compose.production.yml 文件确认存在"
+    fi
+    
+    echo "✅ 代码部署到 $DEPLOY_DIR 完成"
 else
     echo "❌ 代码克隆失败"
     exit 1
@@ -190,6 +210,26 @@ fi
 
 # ===== 7. 进入部署目录并配置环境 =====
 cd "$DEPLOY_DIR"
+
+# 运行部署前验证
+echo "🔍 运行部署前验证..."
+if [ -f "scripts/validate-deployment.sh" ]; then
+    chmod +x scripts/validate-deployment.sh
+    if bash scripts/validate-deployment.sh; then
+        echo "✅ 部署前验证通过"
+    else
+        echo "❌ 部署前验证失败"
+        exit 1
+    fi
+else
+    echo "⚠️  验证脚本不存在，手动检查关键文件..."
+    if [ ! -f "docker-compose.production.yml" ]; then
+        echo "❌ 致命错误: docker-compose.production.yml 文件缺失"
+        echo "📁 当前目录内容:"
+        ls -la
+        exit 1
+    fi
+fi
 
 # 创建 .env 文件
 cat > .env <<EOF
