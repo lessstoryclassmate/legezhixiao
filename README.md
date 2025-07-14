@@ -47,16 +47,62 @@ docker-compose -f docker-compose.production.yml up -d
 
 ## 部署方式
 
-### 1. 克隆仓库部署
+### 1. SSH密钥配置
+
+**重要说明**：所有部署脚本都需要SSH密钥预先存在，不会自动生成密钥以避免覆盖现有配置。
+
+首先配置SSH密钥用于GitHub认证（**必须使用指定路径**）：
 
 ```bash
-# 克隆项目
-git clone https://github.com/your-username/ai-novel-editor.git
-cd ai-novel-editor
+# 生成SSH密钥（必须使用此路径）
+ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N ''
 
-# 启动服务
-chmod +x scripts/deploy.sh
-./scripts/deploy.sh
+# 查看公钥内容
+cat /root/.ssh/id_ed25519.pub
+
+# 复制公钥内容，访问以下地址添加到GitHub
+# https://github.com/settings/ssh/new
+```
+
+**注意：SSH密钥必须存放在 `/root/.ssh/id_ed25519` 路径，所有部署脚本都依赖此路径。**
+
+### 密钥验证
+
+在部署前验证SSH配置：
+
+```bash
+# 检查SSH密钥冲突
+./scripts/check-ssh-conflicts.sh
+
+# 验证SSH配置
+./scripts/validate-ssh-config.sh
+
+# 测试GitHub连接
+ssh -T git@github.com
+```
+
+### 2. 一键部署
+
+```bash
+# 下载统一部署脚本
+curl -O https://raw.githubusercontent.com/lessstoryclassmate/legezhixiao/main/scripts/unified-deploy.sh
+chmod +x unified-deploy.sh
+
+# 执行完整部署
+./unified-deploy.sh --deploy
+```
+
+### 3. 分步部署
+
+```bash
+# 1. 配置SSH认证
+./unified-deploy.sh --setup-ssh
+
+# 2. 配置Docker镜像
+./unified-deploy.sh --setup-docker
+
+# 3. 健康检查
+./unified-deploy.sh --health-check
 ```
 
 ### 2. GitHub Actions自动部署

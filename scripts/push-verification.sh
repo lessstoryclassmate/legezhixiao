@@ -50,6 +50,6 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo "🚀 部署准备就绪!"
 echo "💡 建议的部署命令:"
-echo "   git clone https://github.com/lessstoryclassmate/legezhixiao"
+echo "   git clone git@github.com:lessstoryclassmate/legezhixiao.git"
 echo "   cd legezhixiao"
 echo "   docker-compose -f docker-compose.production.yml up -d"

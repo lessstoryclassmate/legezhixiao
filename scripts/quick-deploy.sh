@@ -9,7 +9,9 @@ echo "🚀 开始快速部署 AI 小说编辑器（修复版）..."
 # 定义变量
 PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
-GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
+# 使用SSH方式克隆GitHub仓库
+GITHUB_REPOSITORY="lessstoryclassmate/legezhixiao"
+GITHUB_REPO="git@github.com:${GITHUB_REPOSITORY}.git"
 
 # ===== 1. 修复 DNS 配置（解决镜像拉取失败）=====
 echo "🌐 修复 DNS 配置（解决镜像拉取失败）..."
@@ -129,7 +131,44 @@ fi
 echo "🧹 清理旧版本..."
 sudo rm -rf "$DEPLOY_DIR"
 
-# ===== 6. 克隆最新代码 =====
+# ===== 6. 配置SSH并克隆最新代码 =====
+echo "🔑 配置SSH Git认证..."
+
+# SSH密钥路径
+SSH_KEY_PATH="/root/.ssh/id_ed25519"
+
+# 检查SSH密钥是否存在
+if [ ! -f "$SSH_KEY_PATH" ]; then
+    echo "❌ SSH密钥不存在: $SSH_KEY_PATH"
+    echo "请确保SSH密钥已生成并配置"
+    exit 1
+fi
+
+# 设置SSH密钥权限
+chmod 600 "$SSH_KEY_PATH"
+
+# 配置SSH客户端
+mkdir -p /root/.ssh
+cat > /root/.ssh/config << 'EOF'
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile /root/.ssh/id_ed25519
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    ConnectTimeout 30
+EOF
+chmod 600 /root/.ssh/config
+
+# 配置Git使用SSH
+export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i $SSH_KEY_PATH"
+git config --global core.sshCommand "ssh -i $SSH_KEY_PATH -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+git config --global user.name "Deploy Bot" || true
+git config --global user.email "deploy@example.com" || true
+
+echo "✅ SSH Git认证配置完成"
+
 echo "📥 克隆最新代码..."
 sudo mkdir -p "$DEPLOY_DIR"
 cd /tmp

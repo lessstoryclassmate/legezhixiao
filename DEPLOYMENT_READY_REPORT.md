@@ -23,7 +23,7 @@
 
 ### 方式2: 手动服务器部署
 ```bash
-git clone https://github.com/lessstoryclassmate/legezhixiao.git
+git clone git@github.com:lessstoryclassmate/legezhixiao.git
 cd legezhixiao
 chmod +x scripts/quick-deploy.sh
 ./scripts/quick-deploy.sh

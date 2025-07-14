@@ -15,7 +15,8 @@ SERVER_IP=""
 SERVER_USER="root"
 SERVER_SSH_PORT="22"
 GITHUB_REPO="lessstoryclassmate/legezhixiao"
-PERSONAL_ACCESS_TOKEN="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"
+SSH_REPO="git@github.com:${GITHUB_REPO}.git"
+SSH_KEY_PATH="/root/.ssh/id_ed25519"
 
 # 环境变量配置
 SILICONFLOW_API_KEY=""
@@ -37,6 +38,32 @@ print_warning() {
 
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# SSH认证配置
+setup_ssh_auth() {
+    print_info "配置SSH认证..."
+    
+    # 检查SSH密钥是否存在
+    if [ ! -f "$SSH_KEY_PATH" ]; then
+        print_error "SSH密钥不存在: $SSH_KEY_PATH"
+        print_warning "请确保SSH密钥已存在于服务器上"
+        echo "   密钥路径: $SSH_KEY_PATH"
+        echo "   公钥路径: ${SSH_KEY_PATH}.pub"
+        echo ""
+        echo "如果公钥未添加到GitHub，请访问:"
+        echo "  https://github.com/settings/ssh/new"
+        exit 1
+    fi
+    
+    # 设置SSH密钥权限
+    chmod 600 "$SSH_KEY_PATH"
+    
+    # 配置Git使用SSH
+    export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i $SSH_KEY_PATH"
+    git config --global core.sshCommand "ssh -i $SSH_KEY_PATH -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+    
+    print_success "SSH认证配置完成"
 }
 
 # 检查本地环境
@@ -210,6 +237,9 @@ print_info "创建项目目录: $PROJECT_DIR"
 mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 
+# 配置SSH认证
+setup_ssh_auth
+
 # 克隆代码
 print_info "克隆项目代码..."
 if [ -d ".git" ]; then
@@ -220,7 +250,7 @@ else
     if [ "$(ls -A . 2>/dev/null)" ]; then
         rm -rf ./*
     fi
-    git clone https://$PERSONAL_ACCESS_TOKEN@github.com/$GITHUB_REPO .
+    git clone "$SSH_REPO" .
 fi
 
 # 创建环境变量文件
@@ -403,7 +433,6 @@ upload_and_execute() {
         export SILICONFLOW_API_KEY='$SILICONFLOW_API_KEY'
         export JWT_SECRET_KEY='$JWT_SECRET_KEY'
         export REDIS_PASSWORD='$REDIS_PASSWORD'
-        export PERSONAL_ACCESS_TOKEN='$PERSONAL_ACCESS_TOKEN'
         export GITHUB_REPO='$GITHUB_REPO'
         chmod +x /tmp/remote_install.sh
         bash /tmp/remote_install.sh

@@ -20,7 +20,7 @@ docker-compose -f docker-compose.production.yml up -d
 ### 服务器部署
 ```bash
 # 1. 克隆代码
-git clone https://github.com/lessstoryclassmate/legezhixiao.git
+git clone git@github.com:lessstoryclassmate/legezhixiao.git
 cd legezhixiao
 
 # 2. 配置环境变量

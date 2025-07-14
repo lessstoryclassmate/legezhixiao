@@ -1,12 +1,16 @@
 #!/bin/bash
-# Dif curl -s --connect-timeout 8 https://ccr.ccs.tencentyun.com/v2/ > /dev/null; then
+# 镜像可用性检查脚本
+
+echo "🔍 检查 Docker 镜像可用性..."
+
+# 检查腾讯云镜像访问性
+if curl -s --connect-timeout 8 https://ccr.ccs.tencentyun.com/v2/ > /dev/null; then
     echo "✅ 腾讯云镜像可访问"
     TENCENT_MIRROR_ACCESS=true
 else
     echo "❌ 腾讯云镜像不可访问"
-    TENCENT_MIRROR_ACCESS=false镜像可用性检查脚本
-
-echo "🔍 检查 Docker 镜像可用性..."
+    TENCENT_MIRROR_ACCESS=false
+fi
 
 # 定义需要检查的基础镜像
 IMAGES=(

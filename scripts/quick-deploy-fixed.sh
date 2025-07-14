@@ -146,7 +146,7 @@ git config --global http.postBuffer 524288000
 git config --global http.lowSpeedLimit 0
 git config --global http.lowSpeedTime 999999
 
-if git clone "$GITHUB_REPO" ai-novel-editor-clone; then
+if git clone "git@github.com:${GITHUB_REPOSITORY}.git" ai-novel-editor-clone; then
     echo "✅ 代码克隆成功"
     sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
     sudo chown -R $USER:$USER "$DEPLOY_DIR"

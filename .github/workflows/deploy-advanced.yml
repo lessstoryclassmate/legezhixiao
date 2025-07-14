@@ -194,14 +194,14 @@ jobs:
     - name: 🚀 Deploy to Production Server
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
           echo "🚀 开始部署 AI 小说编辑器..."
           
           # 设置环境变量
-          export SERVER_IP="${{ secrets.HOST }}"
+          export SERVER_IP="${{ secrets.SERVER_IP }}"
           export GITHUB_REPOSITORY="${{ github.repository }}"
           
           # 创建增强部署脚本

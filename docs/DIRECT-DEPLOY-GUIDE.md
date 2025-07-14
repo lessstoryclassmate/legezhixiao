@@ -34,7 +34,7 @@
 ssh your_user@your_server_ip
 
 # 2. 克隆仓库（首次）
-git clone https://github.com/lessstoryclassmate/legezhixiao.git
+git clone git@github.com:lessstoryclassmate/legezhixiao.git
 cd legezhixiao
 
 # 3. 安装Docker环境
