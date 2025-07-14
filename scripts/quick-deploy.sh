@@ -127,11 +127,7 @@ if [ -d "$DEPLOY_DIR" ]; then
     sudo docker-compose down --remove-orphans || true
 fi
 
-# ===== 5. 清理旧版本 =====
-echo "🧹 清理旧版本..."
-sudo rm -rf "$DEPLOY_DIR"
-
-# ===== 6. 配置SSH并克隆最新代码 =====
+# ===== 5. 配置SSH并准备部署目录 =====
 echo "🔑 配置SSH Git认证..."
 
 # SSH密钥路径
@@ -169,47 +165,65 @@ git config --global user.email "deploy@example.com" || true
 
 echo "✅ SSH Git认证配置完成"
 
-echo "📥 克隆最新代码..."
+# ===== 6. 获取/更新最新代码 =====
+echo "📥 获取最新代码..."
 
-# 确保目标目录存在并有正确权限
+# 确保部署目录存在
 sudo mkdir -p "$DEPLOY_DIR"
 sudo chown -R $USER:$USER "$DEPLOY_DIR"
 
-cd /tmp
-rm -rf ai-novel-editor-clone
+# 进入部署目录
+cd "$DEPLOY_DIR"
 
-# 优化 git 克隆参数
+# 优化 git 配置
 git config --global http.postBuffer 524288000
 git config --global http.lowSpeedLimit 0
 git config --global http.lowSpeedTime 999999
 
-if git clone "$GITHUB_REPO" ai-novel-editor-clone; then
-    echo "✅ 代码克隆成功"
-    
-    # 确保克隆的内容完整复制，包括隐藏文件
-    sudo rm -rf "$DEPLOY_DIR"/*
-    sudo rm -rf "$DEPLOY_DIR"/.[^.]*
-    sudo cp -r ai-novel-editor-clone/. "$DEPLOY_DIR"/
-    sudo chown -R $USER:$USER "$DEPLOY_DIR"
-    
-    # 验证关键文件是否存在
-    if [ ! -f "$DEPLOY_DIR/docker-compose.production.yml" ]; then
-        echo "❌ 关键文件 docker-compose.production.yml 丢失"
-        echo "📁 部署目录内容："
-        ls -la "$DEPLOY_DIR"
-        exit 1
+# 如果是首次部署，克隆仓库；否则更新代码
+if [ ! -d ".git" ]; then
+    echo "🔄 首次部署，克隆仓库..."
+    if git clone "$GITHUB_REPO" .; then
+        echo "✅ 代码克隆成功"
     else
-        echo "✅ docker-compose.production.yml 文件确认存在"
+        echo "❌ 代码克隆失败"
+        exit 1
     fi
-    
-    echo "✅ 代码部署到 $DEPLOY_DIR 完成"
 else
-    echo "❌ 代码克隆失败"
-    exit 1
+    echo "🔄 更新现有代码..."
+    # 清理本地修改和未跟踪文件
+    git reset --hard HEAD
+    git clean -fd
+    # 拉取最新代码
+    if git pull origin main; then
+        echo "✅ 代码更新成功"
+    else
+        echo "❌ 代码更新失败"
+        exit 1
+    fi
 fi
 
-# ===== 7. 进入部署目录并配置环境 =====
-cd "$DEPLOY_DIR"
+# 确保关键文件存在
+if [ ! -f "docker-compose.production.yml" ]; then
+    echo "❌ 关键文件 docker-compose.production.yml 丢失"
+    echo "📁 当前目录内容："
+    ls -la
+    exit 1
+fi
+    
+# 验证关键文件是否存在
+if [ ! -f "docker-compose.production.yml" ]; then
+    echo "❌ 关键文件 docker-compose.production.yml 丢失"
+    echo "📁 当前目录内容："
+    ls -la
+    exit 1
+else
+    echo "✅ docker-compose.production.yml 文件确认存在"
+fi
+
+echo "✅ 代码获取完成"
+
+# ===== 7. 配置环境并验证 =====
 
 # 运行部署前验证
 echo "🔍 运行部署前验证..."
