@@ -124,10 +124,6 @@ else
     echo "  ❌ Docker 服务未运行"
     echo "  建议运行: sudo systemctl start docker"
 fi
-    echo '  }'
-    echo '  EOF'
-    echo '  sudo systemctl restart docker'
-fi
 
 # 端口冲突解决建议
 for port in 80 8000; do
