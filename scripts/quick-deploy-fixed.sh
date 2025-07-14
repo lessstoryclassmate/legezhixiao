@@ -11,24 +11,32 @@ PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
 
-# ===== 1. 修复 DNS 配置（解决镜像拉取失败）=====
-echo "🌐 修复 DNS 配置（解决镜像拉取失败）..."
+# ===== 1. 修复 DNS 配置（使用腾讯云 DNS）=====
+echo "🌐 修复 DNS 配置（使用腾讯云 DNS）..."
 echo "原 DNS 配置:"
 cat /etc/resolv.conf
 
-# 使用阿里云和 Google DNS（更稳定）
-sudo bash -c 'echo -e "nameserver 223.5.5.5\nnameserver 8.8.8.8" > /etc/resolv.conf'
-echo "✅ DNS 已设置为阿里云和 Google DNS"
+# 使用腾讯云公共 DNS（优先腾讯云）
+sudo bash -c 'cat > /etc/resolv.conf <<EOF
+nameserver 119.29.29.29
+nameserver 223.5.5.5
+nameserver 8.8.8.8
+EOF'
+echo "✅ DNS 已设置为腾讯云、阿里云和 Google DNS（优先腾讯云）"
 
 # 验证 DNS 解析
 echo "🔍 验证关键域名 DNS 解析..."
-for domain in "mirror.baidubce.com" "registry-1.docker.io" "github.com"; do
+for domain in "mirror.ccs.tencentyun.com" "github.com"; do
     if nslookup "$domain" > /dev/null 2>&1; then
         echo "✅ $domain - DNS 解析正常"
     else
         echo "❌ $domain - DNS 解析失败"
-        # 尝试另一组 DNS
-        sudo bash -c 'echo -e "nameserver 8.8.8.8\nnameserver 114.114.114.114" > /etc/resolv.conf'
+        # 尝试另一组 DNS（保持腾讯云优先）
+        sudo bash -c 'cat > /etc/resolv.conf <<EOF
+nameserver 8.8.8.8
+nameserver 119.29.29.29
+nameserver 114.114.114.114
+EOF'
         sleep 2
         if nslookup "$domain" > /dev/null 2>&1; then
             echo "✅ $domain - 备用 DNS 解析成功"
@@ -87,36 +95,30 @@ sudo systemctl daemon-reload || true
 sudo systemctl reset-failed || true
 echo "✅ systemd 服务冲突清理完成"
 
-# ===== 3. 配置 Docker 镜像加速器 =====
-echo "🐳 配置 Docker 镜像加速器..."
+# ===== 3. 配置腾讯云 Docker 镜像加速器 =====
+echo "🐳 配置腾讯云 Docker 镜像加速器..."
 
-# 测试网络连通性
-echo "🔍 测试镜像源连通性..."
-if curl -s --connect-timeout 10 https://mirror.baidubce.com/v2/ > /dev/null; then
-    echo "✅ 百度云镜像源可访问"
-    REGISTRY_MIRROR="https://mirror.baidubce.com"
-elif curl -s --connect-timeout 10 https://registry-1.docker.io/v2/ > /dev/null; then
-    echo "✅ Docker Hub 可访问，使用官方源"
-    REGISTRY_MIRROR=""
+# 测试腾讯云镜像源连通性
+echo "🔍 测试腾讯云镜像源连通性..."
+if curl -s --connect-timeout 10 https://mirror.ccs.tencentyun.com/v2/ > /dev/null; then
+    echo "✅ 腾讯云镜像源可访问"
+    REGISTRY_MIRROR="https://mirror.ccs.tencentyun.com"
 else
-    echo "⚠️ 网络连通性有问题，但继续部署"
-    REGISTRY_MIRROR=""
+    echo "⚠️ 腾讯云镜像源连通异常，但继续部署"
+    REGISTRY_MIRROR="https://mirror.ccs.tencentyun.com"
 fi
 
-# 配置 Docker 镜像加速器
+# 配置腾讯云 Docker 镜像加速器
 sudo mkdir -p /etc/docker
-if [ -n "$REGISTRY_MIRROR" ]; then
-    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
   "registry-mirrors": [
     "$REGISTRY_MIRROR"
-  ]
+  ],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"]
 }
 EOF
-    echo "✅ Docker 镜像加速器已配置"
-else
-    echo "⚠️ 跳过镜像加速器配置，使用默认设置"
-fi
+echo "✅ 腾讯云 Docker 镜像加速器已配置"
 
 # 重启 Docker 服务应用配置
 echo "🔄 重启 Docker 服务..."
@@ -221,11 +223,33 @@ echo "🚀 使用 Docker Compose 启动服务..."
 echo "📋 当前 Docker 配置："
 sudo docker info | grep -E "(Registry|Mirrors)" || echo "使用默认配置"
 
-# 预拉取基础镜像（可选）
-echo "📦 预拉取基础镜像..."
-sudo docker pull node:18-alpine || true
-sudo docker pull python:3.11-slim || true
-sudo docker pull nginx:alpine || true
+# 预拉取基础镜像（通过腾讯云镜像加速器）
+echo "📦 预拉取基础镜像（通过腾讯云镜像加速器）..."
+
+# 验证腾讯云镜像加速器配置
+echo "🔍 验证腾讯云镜像加速器配置..."
+if grep -q "mirror.ccs.tencentyun.com" /etc/docker/daemon.json 2>/dev/null; then
+    echo "✅ 腾讯云镜像加速器配置正确"
+else
+    echo "⚠️ 腾讯云镜像加速器配置异常"
+fi
+
+# 基础镜像列表（通过镜像加速器会自动从腾讯云拉取）
+BASE_IMAGES=(
+    "node:18-alpine"
+    "python:3.11-slim" 
+    "nginx:alpine"
+)
+
+# 拉取基础镜像
+for image in "${BASE_IMAGES[@]}"; do
+    echo "🔄 拉取镜像: $image（通过腾讯云加速器）"
+    if sudo docker pull "$image"; then
+        echo "✅ $image 拉取成功"
+    else
+        echo "❌ $image 拉取失败，构建时会自动拉取"
+    fi
+done
 
 # 启动服务
 echo "🔄 启动 Docker Compose 服务..."
