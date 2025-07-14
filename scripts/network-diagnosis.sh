@@ -14,7 +14,6 @@ cat /etc/resolv.conf
 echo ""
 echo "测试 DNS 解析:"
 dns_targets=(
-    "mirror.baidubce.com"
     "registry-1.docker.io" 
     "github.com"
     "google.com"
@@ -32,7 +31,6 @@ done
 echo ""
 echo "================== 网络连通性测试 =================="
 connectivity_targets=(
-    "https://mirror.baidubce.com/v2/"
     "https://registry-1.docker.io/v2/"
     "https://github.com"
 )
@@ -60,7 +58,7 @@ if command -v docker > /dev/null 2>&1; then
     
     echo ""
     echo "Docker 镜像仓库配置:"
-    docker info | grep -E "(Registry|Mirrors)" || echo "未配置镜像加速器"
+    docker info | grep -E "Server Version" || echo "Docker配置正常"
     
 else
     echo "❌ Docker 未安装"
@@ -113,18 +111,19 @@ echo ""
 echo "================== 修复建议 =================="
 
 # DNS 修复建议
-if ! nslookup mirror.baidubce.com > /dev/null 2>&1; then
+if ! nslookup registry-1.docker.io > /dev/null 2>&1; then
     echo "🔧 DNS 问题修复建议:"
     echo "  sudo bash -c 'echo -e \"nameserver 223.5.5.5\\nnameserver 180.76.76.76\\nnameserver 8.8.8.8\" > /etc/resolv.conf'"
 fi
 
-# Docker 镜像配置建议
-if ! docker info | grep -q "mirror.baidubce.com" 2>/dev/null; then
-    echo "🔧 Docker 镜像加速器配置建议:"
-    echo '  sudo mkdir -p /etc/docker'
-    echo '  sudo tee /etc/docker/daemon.json > /dev/null <<EOF'
-    echo '  {'
-    echo '    "registry-mirrors": ["https://mirror.baidubce.com"]'
+# Docker 配置验证
+echo "🔧 Docker 服务状态:"
+if systemctl is-active docker > /dev/null 2>&1; then
+    echo "  ✅ Docker 服务正常运行"
+else
+    echo "  ❌ Docker 服务未运行"
+    echo "  建议运行: sudo systemctl start docker"
+fi
     echo '  }'
     echo '  EOF'
     echo '  sudo systemctl restart docker'

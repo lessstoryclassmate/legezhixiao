@@ -158,7 +158,7 @@ flush_dns_cache() {
 verify_dns_fix() {
     echo "🧪 验证DNS修复结果..."
     
-    test_domains=("github.com" "registry-1.docker.io" "mirror.baidubce.com" "google.com")
+    test_domains=("github.com" "registry-1.docker.io" "ccr.ccs.tencentyun.com" "google.com")
     success_count=0
     
     for domain in "${test_domains[@]}"; do
@@ -189,10 +189,8 @@ configure_docker_dns() {
     sudo mkdir -p /etc/docker
     cat > /tmp/docker-daemon.json << EOF
 {
+  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
   "dns": ["223.5.5.5", "8.8.8.8", "1.1.1.1"],
-  "registry-mirrors": [
-    "https://mirror.baidubce.com"
-  ],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",

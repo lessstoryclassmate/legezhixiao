@@ -26,7 +26,7 @@ cat /etc/resolv.conf
 
 # 验证 DNS 修复效果
 echo "🔍 验证 DNS 修复效果..."
-for domain in "github.com" "mirror.baidubce.com" "registry-1.docker.io"; do
+for domain in "github.com" "ccr.ccs.tencentyun.com" "registry-1.docker.io"; do
     if nslookup "$domain" > /dev/null 2>&1; then
         echo "✅ $domain - DNS 解析正常"
     else

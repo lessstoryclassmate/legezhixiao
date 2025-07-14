@@ -22,7 +22,7 @@ echo "✅ DNS 已设置为阿里云和 Google DNS"
 
 # 验证 DNS 解析
 echo "🔍 验证关键域名 DNS 解析..."
-for domain in "mirror.baidubce.com" "registry-1.docker.io" "github.com"; do
+for domain in "registry-1.docker.io" "github.com"; do
     if nslookup "$domain" > /dev/null 2>&1; then
         echo "✅ $domain - DNS 解析正常"
     else
@@ -87,36 +87,30 @@ sudo systemctl daemon-reload || true
 sudo systemctl reset-failed || true
 echo "✅ systemd 服务冲突清理完成"
 
-# ===== 3. 配置 Docker 镜像加速器 =====
-echo "🐳 配置 Docker 镜像加速器..."
+# ===== 3. 确保 Docker 服务正常 =====
+echo "🐳 确保 Docker 服务正常运行..."
 
-# 测试网络连通性
-echo "🔍 测试镜像源连通性..."
-if curl -s --connect-timeout 10 https://mirror.baidubce.com/v2/ > /dev/null; then
-    echo "✅ 百度云镜像源可访问"
-    REGISTRY_MIRROR="https://mirror.baidubce.com"
-elif curl -s --connect-timeout 10 https://registry-1.docker.io/v2/ > /dev/null; then
-    echo "✅ Docker Hub 可访问，使用官方源"
-    REGISTRY_MIRROR=""
-else
-    echo "⚠️ 网络连通性有问题，但继续部署"
-    REGISTRY_MIRROR=""
-fi
-
-# 配置 Docker 镜像加速器
+# 确保 Docker 配置目录存在
 sudo mkdir -p /etc/docker
-if [ -n "$REGISTRY_MIRROR" ]; then
-    sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+
+# 配置腾讯云 Docker 镜像加速器
+echo "🔧 配置腾讯云 Docker 镜像加速器..."
+
+# 创建Docker daemon配置
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
-  "registry-mirrors": [
-    "$REGISTRY_MIRROR"
-  ]
+  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
+  "dns": ["223.5.5.5", "8.8.8.8"],
+  "max-concurrent-downloads": 5,
+  "max-concurrent-uploads": 3,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m",
+    "max-file": "3"
+  }
 }
 EOF
-    echo "✅ Docker 镜像加速器已配置"
-else
-    echo "⚠️ 跳过镜像加速器配置，使用默认设置"
-fi
+echo "✅ 腾讯云 Docker 镜像加速器已配置"
 
 # 重启 Docker 服务应用配置
 echo "🔄 重启 Docker 服务..."
@@ -219,7 +213,7 @@ echo "🚀 使用 Docker Compose 启动服务..."
 
 # 显示当前 Docker 配置
 echo "📋 当前 Docker 配置："
-sudo docker info | grep -E "(Registry|Mirrors)" || echo "使用默认配置"
+sudo docker info | grep -E "Server Version" || echo "使用默认配置"
 
 # 预拉取基础镜像（可选）
 echo "📦 预拉取基础镜像..."

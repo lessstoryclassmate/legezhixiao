@@ -114,7 +114,7 @@ echo "================== 5. 域名解析详细测试 =================="
 test_domains=(
     "github.com"
     "registry-1.docker.io" 
-    "mirror.baidubce.com"
+    "ccr.ccs.tencentyun.com"
     "google.com"
     "baidu.com"
 )

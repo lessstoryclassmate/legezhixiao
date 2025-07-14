@@ -115,7 +115,7 @@ diagnose_ci_network() {
     # 测试关键域名解析
     echo ""
     echo "关键域名解析测试:"
-    domains=("github.com" "registry-1.docker.io" "mirror.baidubce.com")
+    domains=("github.com" "registry-1.docker.io")
     
     for domain in "${domains[@]}"; do
         if timeout 5 nslookup "$domain" > /dev/null 2>&1; then
@@ -130,20 +130,13 @@ diagnose_ci_network() {
 optimize_docker_pull() {
     echo "🚀 优化Docker镜像拉取..."
     
-    # 设置镜像加速器环境变量
-    export DOCKER_REGISTRY_MIRROR="https://mirror.baidubce.com"
-    
     # 如果可以修改Docker配置
     if [ -w /etc/docker/ ] || [ "$CI_ENV" = "local" ]; then
         sudo mkdir -p /etc/docker
         
         cat > /tmp/docker-daemon-ci.json << EOF
 {
-  "registry-mirrors": [
-    "https://mirror.baidubce.com",
-    "https://dockerproxy.com",
-    "https://docker.mirrors.ustc.edu.cn"
-  ],
+  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
   "dns": ["223.5.5.5", "8.8.8.8"],
   "max-concurrent-downloads": 3,
   "max-concurrent-uploads": 3
@@ -158,7 +151,7 @@ EOF
             sleep 5
         fi
         
-        green "✅ Docker镜像加速器已配置"
+        green "✅ Docker腾讯云镜像加速器已配置"
     fi
 }
 
@@ -181,14 +174,7 @@ test_image_pull() {
             green "✅ $image 拉取成功"
             docker rmi "$image" > /dev/null 2>&1 || true
         else
-            # 尝试从镜像源拉取
-            mirror_image="mirror.baidubce.com/library/$image"
-            if timeout 30 docker pull "$mirror_image" > /dev/null 2>&1; then
-                green "✅ $mirror_image 拉取成功"
-                docker rmi "$mirror_image" > /dev/null 2>&1 || true
-            else
-                red "❌ $image 拉取失败"
-            fi
+            red "❌ $image 拉取失败"
         fi
     done
 }
@@ -253,7 +239,7 @@ generate_ci_report() {
     echo ""
     echo "🔧 故障排除建议:"
     echo "• 如果GitHub Actions失败，检查runner网络配置"
-    echo "• 如果Docker拉取失败，尝试使用镜像加速器"
+    echo "• 如果Docker拉取失败，检查网络连接"
     echo "• 检查组织/仓库的网络策略设置"
     echo "• 考虑在workflow中添加网络重试机制"
 }

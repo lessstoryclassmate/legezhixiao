@@ -1,8 +1,34 @@
 name: Deploy AI Novel Editor (Clone Mode)
 
 on:
-  push:
-    branches: [ main ]
+  push:        # 上传部署相关脚本
+        scp scripts/quick-deploy.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/network-diagnosis.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/dns-diagnosis.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/dns-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/network-fix-all.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/ci-dns-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/port-conflict-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+
+        # 预先检查和修复端口冲突
+        echo "🚪 检查和修复端口冲突..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          chmod +x /tmp/port-conflict-fix.sh
+          echo '🔍 检查80端口冲突...'
+          sudo /tmp/port-conflict-fix.sh --port 80 || echo '⚠️ 端口80处理完成（可能有警告）'
+          echo '🔍 检查8000端口冲突...'
+          sudo /tmp/port-conflict-fix.sh --port 8000 || echo '⚠️ 端口8000处理完成（可能有警告）'
+        "
+
+        # 预先修复网络和DNS问题
+        echo "🔧 预先修复网络和DNS问题..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          chmod +x /tmp/network-fix-all.sh /tmp/ci-dns-fix.sh
+          echo '🌐 执行网络一键修复...'
+          sudo /tmp/network-fix-all.sh || echo '⚠️ 网络修复完成（可能有警告）'
+          echo '⚙️ 执行CI环境DNS优化...'
+          /tmp/ci-dns-fix.sh || echo '⚠️ CI DNS优化完成（可能有警告）'
+        "main ]
   workflow_dispatch:
 
 env:
@@ -34,7 +60,7 @@ jobs:
           echo "✅ Docker Hub 可访问"
           echo "DOCKER_HUB_ACCESSIBLE=true" >> $GITHUB_ENV
         else
-          echo "⚠️  Docker Hub 访问受限，部署脚本将配置镜像加速器"
+          echo "⚠️  Docker Hub 访问受限，将使用默认配置"
           echo "DOCKER_HUB_ACCESSIBLE=false" >> $GITHUB_ENV
         fi
         
@@ -59,6 +85,25 @@ jobs:
         scp scripts/dns-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
         scp scripts/network-fix-all.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
         scp scripts/ci-dns-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/port-conflict-fix.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+        scp scripts/setup-tencent-docker.sh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}:/tmp/
+
+        # 配置腾讯云Docker镜像加速器
+        echo "🐳 配置腾讯云Docker镜像加速器..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          chmod +x /tmp/setup-tencent-docker.sh
+          sudo /tmp/setup-tencent-docker.sh || echo '⚠️ 腾讯云镜像配置完成（可能有警告）'
+        "
+
+        # 预先检查和修复端口冲突
+        echo "🚪 检查和修复端口冲突..."
+        ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+          chmod +x /tmp/port-conflict-fix.sh
+          echo '🔍 检查80端口冲突...'
+          sudo /tmp/port-conflict-fix.sh --port 80 || echo '⚠️ 端口80处理完成（可能有警告）'
+          echo '🔍 检查8000端口冲突...'
+          sudo /tmp/port-conflict-fix.sh --port 8000 || echo '⚠️ 端口8000处理完成（可能有警告）'
+        "
 
         # 预先修复网络和DNS问题
         echo "� 预先修复网络和DNS问题..."

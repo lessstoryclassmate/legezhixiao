@@ -44,9 +44,9 @@ EOF
     green "✅ DNS配置已修复"
 }
 
-# 2. Docker镜像源配置
-fix_docker_registry() {
-    echo "🐳 第2步: 配置Docker镜像加速..."
+# 2. Docker服务配置
+fix_docker_service() {
+    echo "🐳 第2步: 配置Docker腾讯云镜像加速..."
     
     sudo mkdir -p /etc/docker
     
@@ -55,15 +55,10 @@ fix_docker_registry() {
         sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.backup.$(date +%Y%m%d_%H%M%S)
     fi
     
-    # 配置多个镜像源
+    # 配置腾讯云镜像加速器
     cat > /tmp/docker-daemon.json << EOF
 {
-  "registry-mirrors": [
-    "https://mirror.baidubce.com",
-    "https://dockerproxy.com",
-    "https://docker.mirrors.ustc.edu.cn",
-    "https://registry.docker-cn.com"
-  ],
+  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
   "dns": ["223.5.5.5", "8.8.8.8"],
   "log-driver": "json-file",
   "log-opts": {
@@ -100,7 +95,7 @@ test_connectivity() {
     fi
     
     # 测试DNS解析
-    test_domains=("github.com" "mirror.baidubce.com" "registry-1.docker.io")
+    test_domains=("github.com" "registry-1.docker.io")
     for domain in "${test_domains[@]}"; do
         if nslookup "$domain" > /dev/null 2>&1; then
             green "✅ $domain 解析成功"
@@ -110,10 +105,10 @@ test_connectivity() {
     done
     
     # 测试HTTPS连接
-    if curl -s --connect-timeout 10 https://mirror.baidubce.com/v2/ > /dev/null; then
-        green "✅ 百度云镜像可访问"
+    if curl -s --connect-timeout 10 https://ccr.ccs.tencentyun.com/v2/ > /dev/null; then
+        green "✅ 腾讯云镜像可访问"
     else
-        yellow "⚠️ 百度云镜像访问异常"
+        yellow "⚠️ 腾讯云镜像访问异常"
     fi
 }
 
@@ -133,15 +128,7 @@ test_docker_pull() {
         docker rmi hello-world > /dev/null 2>&1 || true
     else
         red "❌ Docker镜像拉取失败"
-        echo "尝试手动配置镜像源..."
-        
-        # 尝试直接从百度云拉取
-        if timeout 60 docker pull mirror.baidubce.com/library/hello-world > /dev/null 2>&1; then
-            green "✅ 从百度云镜像拉取成功"
-            docker rmi mirror.baidubce.com/library/hello-world > /dev/null 2>&1 || true
-        else
-            red "❌ 所有镜像源都无法拉取"
-        fi
+        echo "检查网络连接和Docker配置..."
     fi
 }
 
@@ -248,7 +235,7 @@ main() {
     
     # 执行修复步骤
     fix_dns
-    fix_docker_registry  
+    fix_docker_service  
     fix_time_sync
     clean_cache
     
