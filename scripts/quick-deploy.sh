@@ -13,6 +13,24 @@ DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPOSITORY="lessstoryclassmate/legezhixiao"
 GITHUB_REPO="git@github.com:${GITHUB_REPOSITORY}.git"
 
+# ===== 1. 修复 DNS 配置（优# 预拉取基础镜像（Docker Hub 官方镜像，通过腾讯云加速器）
+echo "📦 预拉取基础镜像（Docker Hub 官方镜像，通过腾讯云加速器）..."
+
+# 定义 Docker Hub 官方镜像地址（通过腾讯云镜像加速器自动转换）
+BASE_IMAGES=(
+    "node:18-alpine"
+    "python:3.11-slim"
+    "nginx:alpine"
+)
+
+# 验证腾讯云镜像加速器连通性
+echo "🔍 验证腾讯云镜像加速器连通性..."
+if curl -s --connect-timeout 10 "https://mirror.ccs.tencentyun.com/v2/" > /dev/null; then
+    echo "✅ 腾讯云镜像加速器连通正常"
+else
+    echo "⚠️ 腾讯云镜像加速器连通异常，但继续尝试拉取"
+fi
+
 # ===== 1. 修复 DNS 配置（优先腾讯云仓库）=====
 echo "🌐 修复 DNS 配置（优先腾讯云仓库）..."
 echo "原 DNS 配置:"
@@ -335,9 +353,9 @@ else
     echo "⚠️ 腾讯云 Docker 仓库连通异常，但继续尝试拉取"
 fi
 
-# 拉取腾讯云镜像
+# 拉取 Docker Hub 官方镜像（通过腾讯云加速器）
 for image in "${BASE_IMAGES[@]}"; do
-    echo "🔄 拉取镜像: $image"
+    echo "🔄 拉取镜像: $image（通过腾讯云加速器）"
     if sudo docker pull "$image"; then
         echo "✅ $image 拉取成功"
     else
@@ -421,3 +439,4 @@ echo "  停止服务: sudo docker-compose -f $DEPLOY_DIR/docker-compose.producti
 echo "  查看状态: sudo docker-compose -f $DEPLOY_DIR/docker-compose.production.yml ps"
 
 exit $exit_code
+
