@@ -13,24 +13,32 @@ DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPOSITORY="lessstoryclassmate/legezhixiao"
 GITHUB_REPO="git@github.com:${GITHUB_REPOSITORY}.git"
 
-# ===== 1. 修复 DNS 配置（解决镜像拉取失败）=====
-echo "🌐 修复 DNS 配置（解决镜像拉取失败）..."
+# ===== 1. 修复 DNS 配置（优先腾讯云仓库）=====
+echo "🌐 修复 DNS 配置（优先腾讯云仓库）..."
 echo "原 DNS 配置:"
 cat /etc/resolv.conf
 
-# 使用阿里云和 Google DNS（更稳定）
-sudo bash -c 'echo -e "nameserver 223.5.5.5\nnameserver 8.8.8.8" > /etc/resolv.conf'
-echo "✅ DNS 已设置为阿里云和 Google DNS"
+# 使用腾讯云、阿里云和 Google DNS（优先腾讯云）
+sudo bash -c 'cat > /etc/resolv.conf <<EOF
+nameserver 119.29.29.29
+nameserver 223.5.5.5
+nameserver 8.8.8.8
+EOF'
+echo "✅ DNS 已设置为腾讯云、阿里云和 Google DNS（优先腾讯云）"
 
 # 验证 DNS 解析
 echo "🔍 验证关键域名 DNS 解析..."
-for domain in "registry-1.docker.io" "github.com"; do
+for domain in "ccr.ccs.tencentyun.com" "github.com"; do
     if nslookup "$domain" > /dev/null 2>&1; then
         echo "✅ $domain - DNS 解析正常"
     else
         echo "❌ $domain - DNS 解析失败"
-        # 尝试另一组 DNS
-        sudo bash -c 'echo -e "nameserver 8.8.8.8\nnameserver 114.114.114.114" > /etc/resolv.conf'
+        # 尝试另一组 DNS（保持腾讯云优先）
+        sudo bash -c 'cat > /etc/resolv.conf <<EOF
+nameserver 8.8.8.8
+nameserver 119.29.29.29
+nameserver 114.114.114.114
+EOF'
         sleep 2
         if nslookup "$domain" > /dev/null 2>&1; then
             echo "✅ $domain - 备用 DNS 解析成功"
@@ -308,11 +316,34 @@ echo "🚀 使用 Docker Compose 启动服务..."
 echo "📋 当前 Docker 配置："
 sudo docker info | grep -E "Server Version" || echo "使用默认配置"
 
-# 预拉取基础镜像（可选）
-echo "📦 预拉取基础镜像..."
-sudo docker pull node:18-alpine || true
-sudo docker pull python:3.11-slim || true
-sudo docker pull nginx:alpine || true
+# 预拉取基础镜像（使用腾讯云仓库）
+echo "📦 预拉取基础镜像（腾讯云仓库）..."
+
+# 定义腾讯云镜像地址
+TENCENT_REGISTRY="ccr.ccs.tencentyun.com/library"
+BASE_IMAGES=(
+    "$TENCENT_REGISTRY/node:18-alpine"
+    "$TENCENT_REGISTRY/python:3.11-slim"
+    "$TENCENT_REGISTRY/nginx:alpine"
+)
+
+# 验证腾讯云仓库连通性
+echo "🔍 验证腾讯云 Docker 仓库连通性..."
+if curl -s --connect-timeout 10 "https://ccr.ccs.tencentyun.com/v2/" > /dev/null; then
+    echo "✅ 腾讯云 Docker 仓库连通正常"
+else
+    echo "⚠️ 腾讯云 Docker 仓库连通异常，但继续尝试拉取"
+fi
+
+# 拉取腾讯云镜像
+for image in "${BASE_IMAGES[@]}"; do
+    echo "🔄 拉取镜像: $image"
+    if sudo docker pull "$image"; then
+        echo "✅ $image 拉取成功"
+    else
+        echo "❌ $image 拉取失败，构建时会自动拉取"
+    fi
+done
 
 # 启动服务
 echo "🔄 启动 Docker Compose 服务..."

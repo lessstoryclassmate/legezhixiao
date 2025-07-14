@@ -1,5 +1,5 @@
-# 后端Dockerfile
-FROM python:3.11-slim
+# 后端Dockerfile - 使用腾讯云镜像
+FROM ccr.ccs.tencentyun.com/library/python:3.11-slim
 
 # 设置工作目录
 WORKDIR /app

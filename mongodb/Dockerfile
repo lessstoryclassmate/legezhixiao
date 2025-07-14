@@ -1,5 +1,5 @@
-# MongoDB with network diagnostic tools
-FROM mongo:5.0
+# MongoDB with network diagnostic tools - 使用腾讯云镜像
+FROM ccr.ccs.tencentyun.com/library/mongo:5.0
 
 # 安装网络诊断工具
 RUN apt-get update && apt-get install -y \

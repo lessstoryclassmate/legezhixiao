@@ -1,5 +1,5 @@
-# 前端Dockerfile
-FROM node:18-alpine AS builder
+# 前端Dockerfile - 使用腾讯云镜像
+FROM ccr.ccs.tencentyun.com/library/node:18-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -18,7 +18,7 @@ COPY . .
 RUN npm run build
 
 # 生产环境
-FROM nginx:alpine
+FROM ccr.ccs.tencentyun.com/library/nginx:alpine
 
 # 复制构建结果
 COPY --from=builder /app/dist /usr/share/nginx/html
