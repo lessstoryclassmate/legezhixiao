@@ -122,22 +122,53 @@ echo "🐳 确保 Docker 服务正常运行..."
 # 确保 Docker 配置目录存在
 sudo mkdir -p /etc/docker
 
-# 配置腾讯云 Docker 镜像加速器
-echo "🔧 配置腾讯云 Docker 镜像加速器..."
+# 配置多个国内 Docker 镜像加速器
+echo "🔧 配置多个国内 Docker 镜像加速器..."
+
+# 测试多个镜像加速器连通性
+echo "🔍 测试镜像加速器连通性..."
+REGISTRY_MIRRORS=(
+    "https://mirror.baidubce.com"
+    "https://docker.mirrors.ustc.edu.cn"
+    "https://registry.docker-cn.com"
+    "https://mirror.ccs.tencentyun.com"
+)
+
+working_mirrors=()
+for mirror in "${REGISTRY_MIRRORS[@]}"; do
+    if curl -s --connect-timeout 5 "$mirror/v2/" > /dev/null 2>&1; then
+        echo "✅ $mirror - 连通正常"
+        working_mirrors+=("$mirror")
+    else
+        echo "⚠️ $mirror - 连通异常，跳过"
+    fi
+done
+
+# 如果没有可用镜像，使用默认配置
+if [ ${#working_mirrors[@]} -eq 0 ]; then
+    echo "⚠️ 所有镜像加速器都无法连通，使用默认配置"
+    working_mirrors=("https://mirror.baidubce.com" "https://docker.mirrors.ustc.edu.cn" "https://registry.docker-cn.com")
+fi
 
 # 创建Docker daemon配置
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
-  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "registry-mirrors": [
+$(printf '    "%s",\n' "${working_mirrors[@]}" | sed '$ s/,$//')
+  ],
   "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
-  "max-concurrent-downloads": 5,
-  "max-concurrent-uploads": 3,
+  "max-concurrent-downloads": 10,
+  "max-concurrent-uploads": 5,
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "100m",
     "max-file": "3"
-  }
+  },
+  "storage-driver": "overlay2"
 }
+EOF
+
+echo "✅ Docker 镜像加速器已配置，使用 ${#working_mirrors[@]} 个可用镜像源"
 EOF
 echo "✅ 腾讯云 Docker 镜像加速器已配置"
 
@@ -346,24 +377,26 @@ sudo docker info | grep -E "Server Version" || echo "使用默认配置"
 # 预拉取基础镜像（使用腾讯云仓库）
 echo "📦 预拉取基础镜像（腾讯云仓库）..."
 
-# 定义官方镜像地址（通过腾讯云镜像加速器拉取）
+# 定义官方镜像地址（通过多个镜像加速器拉取）
 BASE_IMAGES=(
     "node:18-alpine"
     "python:3.11-slim"
     "nginx:alpine"
 )
 
-# 验证腾讯云镜像加速器连通性
-echo "🔍 验证腾讯云镜像加速器连通性..."
-if curl -s --connect-timeout 10 "https://mirror.ccs.tencentyun.com/v2/" > /dev/null; then
-    echo "✅ 腾讯云镜像加速器连通正常"
+# 验证镜像加速器连通性
+echo "🔍 验证镜像加速器配置..."
+if [ -f /etc/docker/daemon.json ]; then
+    echo "✅ Docker 镜像加速器配置文件已生成"
+    echo "📋 当前配置的镜像源:"
+    grep -A 10 "registry-mirrors" /etc/docker/daemon.json | head -10
 else
-    echo "⚠️ 腾讯云镜像加速器连通异常，但继续尝试拉取"
+    echo "⚠️ Docker 镜像加速器配置文件生成失败"
 fi
 
-# 拉取 Docker Hub 官方镜像（通过腾讯云加速器）
+# 拉取 Docker Hub 官方镜像（通过多个镜像加速器）
 for image in "${BASE_IMAGES[@]}"; do
-    echo "🔄 拉取镜像: $image（通过腾讯云加速器）"
+    echo "🔄 拉取镜像: $image（通过多个镜像加速器）"
     if sudo docker pull "$image"; then
         echo "✅ $image 拉取成功"
     else

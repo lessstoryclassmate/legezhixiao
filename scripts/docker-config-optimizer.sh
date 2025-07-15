@@ -15,11 +15,36 @@ fi
 # ===== 2. 创建优化的 Docker 配置 =====
 echo "🚀 创建优化的 Docker 配置..."
 
+# 测试多个镜像加速器连通性
+echo "🔍 测试多个镜像加速器连通性..."
+REGISTRY_MIRRORS=(
+    "https://mirror.baidubce.com"
+    "https://docker.mirrors.ustc.edu.cn"
+    "https://registry.docker-cn.com"
+    "https://mirror.ccs.tencentyun.com"
+)
+
+working_mirrors=()
+for mirror in "${REGISTRY_MIRRORS[@]}"; do
+    if curl -s --connect-timeout 5 "$mirror/v2/" > /dev/null 2>&1; then
+        echo "✅ $mirror - 连通正常"
+        working_mirrors+=("$mirror")
+    else
+        echo "⚠️ $mirror - 连通异常，跳过"
+    fi
+done
+
+# 如果没有可用镜像，使用推荐配置
+if [ ${#working_mirrors[@]} -eq 0 ]; then
+    echo "⚠️ 所有镜像加速器都无法连通，使用推荐配置"
+    working_mirrors=("https://mirror.baidubce.com" "https://docker.mirrors.ustc.edu.cn" "https://registry.docker-cn.com")
+fi
+
 sudo mkdir -p /etc/docker
-sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+cat > /tmp/docker-daemon.json <<EOF
 {
   "registry-mirrors": [
-    "https://mirror.ccs.tencentyun.com"
+$(printf '    "%s",\n' "${working_mirrors[@]}" | sed '$ s/,$//')
   ],
   "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "max-concurrent-downloads": 10,
@@ -37,7 +62,8 @@ sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 }
 EOF
 
-echo "✅ Docker 配置已优化"
+sudo cp /tmp/docker-daemon.json /etc/docker/daemon.json
+echo "✅ Docker 配置已优化，使用 ${#working_mirrors[@]} 个可用镜像源"
 
 # ===== 3. 验证配置文件 =====
 echo "🔍 验证 Docker 配置文件..."
@@ -67,14 +93,7 @@ else
 fi
 
 # ===== 6. 测试镜像加速器 =====
-echo "🔍 测试腾讯云镜像加速器..."
-
-# 测试网络连通性
-if curl -s --connect-timeout 10 https://mirror.ccs.tencentyun.com/v2/ > /dev/null; then
-    echo "✅ 腾讯云镜像加速器网络连通正常"
-else
-    echo "⚠️ 腾讯云镜像加速器网络连通异常"
-fi
+echo "🔍 测试多个镜像加速器..."
 
 # 测试镜像拉取
 echo "🔄 测试基础镜像拉取..."
@@ -107,11 +126,14 @@ cat /etc/docker/daemon.json
 
 echo ""
 echo "🎉 Docker 配置优化完成！"
-echo "✅ 已配置腾讯云镜像加速器: https://mirror.ccs.tencentyun.com"
+echo "✅ 已配置多个国内镜像加速器（优先百度云）"
 echo "✅ 已配置腾讯云 DNS: 119.29.29.29"
 echo "✅ 已优化并发下载和日志配置"
 echo ""
 echo "💡 使用提示:"
 echo "  - 现在可以直接使用官方镜像名 (如 node:18-alpine)"
-echo "  - 镜像会自动通过腾讯云加速器拉取"
-echo "  - 不需要使用 ccr.ccs.tencentyun.com/library/ 前缀"
+echo "  - 镜像会自动通过最快的可用加速器拉取"
+echo "  - 支持多个镜像源自动切换"
+echo ""
+echo "📋 配置的镜像源:"
+printf "  - %s\n" "${working_mirrors[@]}"
