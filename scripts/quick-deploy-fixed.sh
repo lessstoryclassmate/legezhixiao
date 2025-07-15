@@ -9,7 +9,7 @@ echo "🚀 开始快速部署 AI 小说编辑器（修复版）..."
 # 定义变量
 PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
-GITHUB_REPO="https://github.com/${GITHUB_REPOSITORY}.git"
+GITHUB_REPO="git@github.com:lessstoryclassmate/legezhixiao.git"
 
 # ===== 1. 配置百度云DNS并验证网络连接 =====
 echo "🌐 配置百度云DNS并验证网络连接..."
@@ -173,10 +173,10 @@ rm -rf ai-novel-editor-clone
 
 if [ "$ssh_works" = true ]; then
     echo "🔑 使用 SSH 方式克隆仓库..."
-    echo "📋 仓库地址: git@github.com:lessstoryclassmate/legezhixiao.git"
+    echo "📋 仓库地址: $GITHUB_REPO"
     echo "🔐 使用密钥: $SSH_KEY_PATH"
     
-    if sudo -u root git clone "git@github.com:lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+    if sudo -u root git clone "$GITHUB_REPO" ai-novel-editor-clone; then
         echo "✅ SSH 克隆成功"
     else
         echo "❌ SSH 克隆失败，尝试 HTTPS 作为备选"
