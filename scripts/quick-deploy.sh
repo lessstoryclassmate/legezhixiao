@@ -9,9 +9,10 @@ echo "🚀 开始快速部署 AI 小说编辑器（修复版）..."
 # 定义变量
 PROJECT_NAME="ai-novel-editor"
 DEPLOY_DIR="/opt/ai-novel-editor"
-# 使用SSH方式克隆GitHub仓库
+# GitHub仓库信息
 GITHUB_REPOSITORY="lessstoryclassmate/legezhixiao"
-GITHUB_REPO="git@github.com:${GITHUB_REPOSITORY}.git"
+GITHUB_REPO_HTTPS="https://github.com/${GITHUB_REPOSITORY}.git"
+GITHUB_REPO_SSH="git@github.com:${GITHUB_REPOSITORY}.git"
 
 # ===== 1. 修复 DNS 配置（优# 预拉取基础镜像（Docker Hub 官方镜像，通过腾讯云加速器）
 echo "📦 预拉取基础镜像（Docker Hub 官方镜像，通过腾讯云加速器）..."
@@ -209,11 +210,19 @@ git config --global http.lowSpeedTime 999999
 # 如果是首次部署，克隆仓库；否则更新代码
 if [ ! -d ".git" ]; then
     echo "🔄 首次部署，克隆仓库..."
-    if git clone "$GITHUB_REPO" .; then
-        echo "✅ 代码克隆成功"
+    
+    # 使用 SSH 克隆（根据需求文档优先使用 SSH）
+    echo "🔄 使用 SSH 克隆代码..."
+    if git clone "$GITHUB_REPO_SSH" .; then
+        echo "✅ SSH 代码克隆成功"
     else
-        echo "❌ 代码克隆失败"
-        exit 1
+        echo "⚠️ SSH 克隆失败，尝试 HTTPS 作为备选..."
+        if git clone "$GITHUB_REPO_HTTPS" .; then
+            echo "✅ HTTPS 代码克隆成功"
+        else
+            echo "❌ 所有克隆方式都失败"
+            exit 1
+        fi
     fi
 else
     echo "🔄 更新现有代码..."

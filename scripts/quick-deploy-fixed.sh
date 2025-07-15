@@ -137,7 +137,69 @@ fi
 echo "🧹 清理旧版本..."
 sudo rm -rf "$DEPLOY_DIR"
 
-# ===== 6. 克隆最新代码 =====
+# ===== 6. 配置 SSH 密钥和克隆最新代码 =====
+echo "🔑 配置 SSH 密钥..."
+
+# 确保 SSH 密钥文件存在并具有正确权限
+SSH_KEY_PATH="/root/.ssh/id_ed25519"
+if [ -f "$SSH_KEY_PATH" ]; then
+    echo "✅ SSH 密钥文件存在: $SSH_KEY_PATH"
+    # 设置正确的权限
+    sudo chmod 600 "$SSH_KEY_PATH"
+    sudo chmod 700 /root/.ssh
+else
+    echo "❌ SSH 密钥文件不存在: $SSH_KEY_PATH"
+    echo "💡 请确保密钥文件已正确部署到服务器"
+    echo "📋 部署步骤："
+    echo "  1. 在服务器上生成 SSH 密钥: ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519"
+    echo "  2. 将公钥添加到 GitHub: cat /root/.ssh/id_ed25519.pub"
+    echo "  3. 重新运行部署脚本"
+    exit 1
+fi
+
+# 配置 SSH 客户端
+echo "🔧 配置 SSH 客户端..."
+sudo mkdir -p /root/.ssh
+sudo tee /root/.ssh/config > /dev/null <<EOF
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile $SSH_KEY_PATH
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    ConnectTimeout 30
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+EOF
+sudo chmod 600 /root/.ssh/config
+
+# 配置 Git 全局设置
+echo "🔧 配置 Git 全局设置..."
+sudo -u root git config --global core.sshCommand "ssh -i $SSH_KEY_PATH -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+sudo -u root git config --global user.name "Deploy Bot" || true
+sudo -u root git config --global user.email "deploy@legezhixiao.com" || true
+
+# 测试 SSH 连接
+echo "🔍 测试 SSH 连接到 GitHub..."
+if sudo -u root ssh -T git@github.com -o ConnectTimeout=10 2>&1 | grep -q "successfully authenticated"; then
+    echo "✅ SSH 连接到 GitHub 成功"
+    ssh_works=true
+else
+    echo "⚠️ SSH 连接测试未通过"
+    ssh_works=false
+fi
+
+# 测试仓库访问
+echo "🔍 测试仓库访问权限..."
+if sudo -u root git ls-remote "git@github.com:lessstoryclassmate/legezhixiao.git" > /dev/null 2>&1; then
+    echo "✅ 仓库访问权限正常"
+    repo_access=true
+else
+    echo "⚠️ 仓库访问权限测试未通过"
+    repo_access=false
+fi
+
 echo "📥 克隆最新代码..."
 sudo mkdir -p "$DEPLOY_DIR"
 cd /tmp
@@ -148,13 +210,38 @@ git config --global http.postBuffer 524288000
 git config --global http.lowSpeedLimit 0
 git config --global http.lowSpeedTime 999999
 
-if git clone "git@github.com:${GITHUB_REPOSITORY}.git" ai-novel-editor-clone; then
-    echo "✅ 代码克隆成功"
-    sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
-    sudo chown -R $USER:$USER "$DEPLOY_DIR"
+# 使用 SSH 克隆（根据需求文档）
+echo "🔄 使用 SSH 克隆代码..."
+if [ "$ssh_works" = true ] && [ "$repo_access" = true ]; then
+    if sudo -u root git clone "git@github.com:lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+        echo "✅ SSH 代码克隆成功"
+        sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
+        sudo chown -R $USER:$USER "$DEPLOY_DIR"
+    else
+        echo "❌ SSH 克隆失败，尝试 HTTPS 作为备选..."
+        if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+            echo "✅ HTTPS 代码克隆成功"
+            sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
+            sudo chown -R $USER:$USER "$DEPLOY_DIR"
+        else
+            echo "❌ 所有克隆方式都失败"
+            exit 1
+        fi
+    fi
 else
-    echo "❌ 代码克隆失败"
-    exit 1
+    echo "⚠️ SSH 配置存在问题，使用 HTTPS 作为备选..."
+    if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+        echo "✅ HTTPS 代码克隆成功"
+        sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
+        sudo chown -R $USER:$USER "$DEPLOY_DIR"
+    else
+        echo "❌ 代码克隆失败"
+        echo "🔧 故障排查建议："
+        echo "  1. 检查网络连接"
+        echo "  2. 验证 GitHub 仓库访问权限"
+        echo "  3. 运行 SSH 验证脚本: ./scripts/verify-ssh-config.sh"
+        exit 1
+    fi
 fi
 
 # ===== 7. 进入部署目录并配置环境 =====
