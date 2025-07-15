@@ -34,8 +34,8 @@ if [ -f /etc/docker/daemon.json ]; then
     # 创建临时配置
     cat > /tmp/tencent-docker-config.json << 'EOF'
 {
-  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
-  "dns": ["223.5.5.5", "8.8.8.8"],
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "max-concurrent-downloads": 5,
   "max-concurrent-uploads": 3,
   "log-driver": "json-file",
@@ -51,8 +51,8 @@ else
     
     cat > /tmp/tencent-docker-config.json << 'EOF'
 {
-  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
-  "dns": ["223.5.5.5", "8.8.8.8"],
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "max-concurrent-downloads": 5,
   "max-concurrent-uploads": 3,
   "log-driver": "json-file",

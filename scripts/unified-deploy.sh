@@ -14,7 +14,7 @@ blue() { echo -e "\033[34m$1\033[0m"; }
 SSH_REPO="git@github.com:lessstoryclassmate/legezhixiao.git"
 SSH_KEY_PATH="/root/.ssh/id_ed25519"
 PROJECT_DIR="/tmp/legezhixiao-$(date +%s)"
-DOCKER_MIRROR="ccr.ccs.tencentyun.com"
+DOCKER_MIRROR="mirror.ccs.tencentyun.com"
 
 # 使用说明
 usage() {
@@ -124,8 +124,9 @@ setup_docker() {
     cat > /etc/docker/daemon.json << EOF
 {
   "registry-mirrors": [
-    "https://ccr.ccs.tencentyun.com"
+    "https://mirror.ccs.tencentyun.com"
   ],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
@@ -144,12 +145,12 @@ EOF
     echo "等待Docker服务启动..."
     sleep 5
     
-    # 测试Docker镜像
-    if docker pull ccr.ccs.tencentyun.com/library/nginx:latest &>/dev/null; then
-        green "✅ 腾讯云Docker镜像配置成功"
-        docker rmi ccr.ccs.tencentyun.com/library/nginx:latest &>/dev/null || true
+    # 测试Docker镜像加速器
+    if docker pull nginx:alpine &>/dev/null; then
+        green "✅ 腾讯云Docker镜像加速器配置成功"
+        docker rmi nginx:alpine &>/dev/null || true
     else
-        yellow "⚠️ 腾讯云镜像测试失败，但Docker服务正常"
+        yellow "⚠️ 腾讯云镜像加速器测试失败，但Docker服务正常"
     fi
 }
 

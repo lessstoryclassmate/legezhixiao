@@ -136,8 +136,8 @@ optimize_docker_pull() {
         
         cat > /tmp/docker-daemon-ci.json << EOF
 {
-  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
-  "dns": ["223.5.5.5", "8.8.8.8"],
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "max-concurrent-downloads": 3,
   "max-concurrent-uploads": 3
 }

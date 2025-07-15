@@ -58,8 +58,8 @@ fix_docker_service() {
     # 配置腾讯云镜像加速器
     cat > /tmp/docker-daemon.json << EOF
 {
-  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
-  "dns": ["223.5.5.5", "8.8.8.8"],
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
@@ -105,10 +105,10 @@ test_connectivity() {
     done
     
     # 测试HTTPS连接
-    if curl -s --connect-timeout 10 https://ccr.ccs.tencentyun.com/v2/ > /dev/null; then
-        green "✅ 腾讯云镜像可访问"
+    if curl -s --connect-timeout 10 https://mirror.ccs.tencentyun.com/v2/ > /dev/null; then
+        green "✅ 腾讯云镜像加速器可访问"
     else
-        yellow "⚠️ 腾讯云镜像访问异常"
+        yellow "⚠️ 腾讯云镜像加速器访问异常"
     fi
 }
 

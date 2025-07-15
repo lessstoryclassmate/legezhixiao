@@ -189,8 +189,8 @@ configure_docker_dns() {
     sudo mkdir -p /etc/docker
     cat > /tmp/docker-daemon.json << EOF
 {
-  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
-  "dns": ["223.5.5.5", "8.8.8.8", "1.1.1.1"],
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",

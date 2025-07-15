@@ -127,8 +127,8 @@ echo "🔧 配置腾讯云 Docker 镜像加速器..."
 # 创建Docker daemon配置
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
 {
-  "registry-mirrors": ["https://ccr.ccs.tencentyun.com"],
-  "dns": ["223.5.5.5", "8.8.8.8"],
+  "registry-mirrors": ["https://mirror.ccs.tencentyun.com"],
+  "dns": ["119.29.29.29", "223.5.5.5", "8.8.8.8"],
   "max-concurrent-downloads": 5,
   "max-concurrent-uploads": 3,
   "log-driver": "json-file",
@@ -337,20 +337,19 @@ sudo docker info | grep -E "Server Version" || echo "使用默认配置"
 # 预拉取基础镜像（使用腾讯云仓库）
 echo "📦 预拉取基础镜像（腾讯云仓库）..."
 
-# 定义腾讯云镜像地址
-TENCENT_REGISTRY="ccr.ccs.tencentyun.com/library"
+# 定义官方镜像地址（通过腾讯云镜像加速器拉取）
 BASE_IMAGES=(
-    "$TENCENT_REGISTRY/node:18-alpine"
-    "$TENCENT_REGISTRY/python:3.11-slim"
-    "$TENCENT_REGISTRY/nginx:alpine"
+    "node:18-alpine"
+    "python:3.11-slim"
+    "nginx:alpine"
 )
 
-# 验证腾讯云仓库连通性
-echo "🔍 验证腾讯云 Docker 仓库连通性..."
-if curl -s --connect-timeout 10 "https://ccr.ccs.tencentyun.com/v2/" > /dev/null; then
-    echo "✅ 腾讯云 Docker 仓库连通正常"
+# 验证腾讯云镜像加速器连通性
+echo "🔍 验证腾讯云镜像加速器连通性..."
+if curl -s --connect-timeout 10 "https://mirror.ccs.tencentyun.com/v2/" > /dev/null; then
+    echo "✅ 腾讯云镜像加速器连通正常"
 else
-    echo "⚠️ 腾讯云 Docker 仓库连通异常，但继续尝试拉取"
+    echo "⚠️ 腾讯云镜像加速器连通异常，但继续尝试拉取"
 fi
 
 # 拉取 Docker Hub 官方镜像（通过腾讯云加速器）
