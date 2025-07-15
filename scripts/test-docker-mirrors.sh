@@ -12,14 +12,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 镜像加速器列表
+# 镜像加速器列表（仅使用百度云）
 REGISTRY_MIRRORS=(
-    "https://mirror.baidubce.com"
-    "https://docker.mirrors.ustc.edu.cn"
-    "https://registry.docker-cn.com"
-    "https://mirror.ccs.tencentyun.com"
-    "https://reg-mirror.qiniu.com"
-    "https://hub-mirror.c.163.com"
+    "https://registry.baidubce.com"
 )
 
 # 测试镜像加速器连通性
@@ -88,7 +83,7 @@ if [ ${#working_mirrors[@]} -gt 0 ]; then
         fi
     done
     echo "  ],"
-    echo "  \"dns\": [\"119.29.29.29\", \"223.5.5.5\", \"8.8.8.8\"],"
+    echo "  \"dns\": [\"180.76.76.76\"],"
     echo "  \"max-concurrent-downloads\": 10,"
     echo "  \"max-concurrent-uploads\": 5,"
     echo "  \"log-driver\": \"json-file\","

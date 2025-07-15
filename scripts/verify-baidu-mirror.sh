@@ -27,14 +27,14 @@ echo -e "${BLUE}📋 检查百度云镜像加速器配置:${NC}"
 if [ -f /etc/docker/daemon.json ]; then
     echo -e "${GREEN}✅ 发现 daemon.json 配置文件${NC}"
     echo "📄 当前配置内容:"
-    cat /etc/docker/daemon.json | grep -A 5 -B 5 "mirror.baidubce.com" || echo "未找到百度云镜像配置"
+    cat /etc/docker/daemon.json | grep -A 5 -B 5 "registry.baidubce.com" || echo "未找到百度云镜像配置"
 else
     echo -e "${YELLOW}⚠️ 未发现 daemon.json 配置文件${NC}"
 fi
 
 # 测试百度云镜像加速器连通性
 echo -e "${BLUE}🌐 测试百度云镜像加速器连通性:${NC}"
-BAIDU_MIRROR="https://mirror.baidubce.com"
+BAIDU_MIRROR="https://registry.baidubce.com"
 
 echo "🔍 测试连通性: $BAIDU_MIRROR"
 if curl -s --connect-timeout 5 --max-time 10 "$BAIDU_MIRROR/v2/" > /dev/null 2>&1; then
@@ -63,16 +63,16 @@ for image in "${TEST_IMAGES[@]}"; do
     
     # 删除本地镜像以测试拉取
     docker rmi "$image" 2>/dev/null || true
-    docker rmi "mirror.baidubce.com/library/$image" 2>/dev/null || true
+    docker rmi "registry.baidubce.com/library/$image" 2>/dev/null || true
     
     # 测试从百度云镜像拉取
-    if docker pull "mirror.baidubce.com/library/$image" 2>/dev/null; then
+    if docker pull "registry.baidubce.com/library/$image" 2>/dev/null; then
         end_time=$(date +%s)
         duration=$((end_time - start_time))
         echo -e "${GREEN}✅ $image 通过百度云镜像拉取成功 (耗时: ${duration}s)${NC}"
         
         # 为镜像添加常规标签
-        docker tag "mirror.baidubce.com/library/$image" "$image"
+        docker tag "registry.baidubce.com/library/$image" "$image"
         echo "🏷️ 已为镜像添加标签: $image"
         
         # 获取镜像详细信息
@@ -113,12 +113,12 @@ for image in "${PROJECT_IMAGES[@]}"; do
     echo "🔍 测试镜像: $image"
     
     # 检查百度云镜像是否可用
-    if docker pull "mirror.baidubce.com/library/$image" 2>/dev/null; then
+    if docker pull "registry.baidubce.com/library/$image" 2>/dev/null; then
         echo -e "${GREEN}✅ $image - 百度云镜像可用${NC}"
         # 添加标签
-        docker tag "mirror.baidubce.com/library/$image" "$image"
+        docker tag "registry.baidubce.com/library/$image" "$image"
         # 清理
-        docker rmi "mirror.baidubce.com/library/$image" 2>/dev/null || true
+        docker rmi "registry.baidubce.com/library/$image" 2>/dev/null || true
         docker rmi "$image" 2>/dev/null || true
     else
         echo -e "${RED}❌ $image - 百度云镜像不可用${NC}"
@@ -134,7 +134,7 @@ echo -e "${BLUE}🔧 检查 Docker 配置有效性:${NC}"
 # 检查镜像加速器是否生效
 echo "📋 检查镜像加速器配置是否生效:"
 docker_info=$(docker info 2>/dev/null | grep -A 10 -i "registry")
-if echo "$docker_info" | grep -q "mirror.baidubce.com"; then
+if echo "$docker_info" | grep -q "registry.baidubce.com"; then
     echo -e "${GREEN}✅ 百度云镜像加速器配置已生效${NC}"
 else
     echo -e "${YELLOW}⚠️ 百度云镜像加速器配置可能未生效${NC}"
@@ -147,7 +147,7 @@ echo "==========================================================================
 echo -e "${BLUE}🧹 清理测试镜像:${NC}"
 for image in "${TEST_IMAGES[@]}"; do
     docker rmi "$image" 2>/dev/null || true
-    docker rmi "mirror.baidubce.com/library/$image" 2>/dev/null || true
+    docker rmi "registry.baidubce.com/library/$image" 2>/dev/null || true
 done
 echo -e "${GREEN}✅ 测试镜像清理完成${NC}"
 
@@ -162,8 +162,8 @@ echo "✅ 验证了常用基础镜像可用性"
 echo "✅ 确认了 Docker 配置有效性"
 echo ""
 echo "💡 使用方法:"
-echo "  1. 拉取镜像: docker pull mirror.baidubce.com/library/nginx:latest"
-echo "  2. 添加标签: docker tag mirror.baidubce.com/library/nginx:latest nginx:latest"
+echo "  1. 拉取镜像: docker pull registry.baidubce.com/library/nginx:latest"
+echo "  2. 添加标签: docker tag registry.baidubce.com/library/nginx:latest nginx:latest"
 echo "  3. 使用镜像: docker run nginx:latest"
 echo ""
 echo "🔧 建议:"

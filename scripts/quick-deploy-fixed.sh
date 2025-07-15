@@ -22,7 +22,6 @@ cat /etc/resolv.conf
 # 使用百度云DNS
 sudo bash -c 'cat > /etc/resolv.conf <<EOF
 nameserver 180.76.76.76
-nameserver 8.8.8.8
 EOF'
 echo "✅ DNS 已设置为百度云DNS (180.76.76.76)"
 
@@ -84,7 +83,7 @@ sudo mkdir -p /etc/docker
 cat > /tmp/docker-daemon.json <<EOF
 {
   "registry-mirrors": ["https://registry.baidubce.com"],
-  "dns": ["180.76.76.76", "8.8.8.8"],
+  "dns": ["180.76.76.76"],
   "max-concurrent-downloads": 3,
   "max-concurrent-uploads": 5,
   "log-driver": "json-file",
