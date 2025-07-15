@@ -121,8 +121,28 @@ echo "🔑 配置 SSH 密钥..."
 
 # SSH 密钥配置（根据需求文档）
 SSH_KEY_PATH="/root/.ssh/id_ed25519"
+
+# 严格检查SSH密钥文件
+if [ ! -f "$SSH_KEY_PATH" ]; then
+    echo "❌ SSH密钥不存在: $SSH_KEY_PATH"
+    echo "🔧 请确保SSH密钥已正确部署到服务器"
+    echo "💡 生成SSH密钥命令: ssh-keygen -t ed25519 -f $SSH_KEY_PATH -N ''"
+    echo "📋 请将公钥添加到GitHub仓库的Deploy Keys中"
+    exit 1
+fi
+
 if [ -f "$SSH_KEY_PATH" ]; then
     echo "✅ SSH 私钥文件存在: $SSH_KEY_PATH"
+    
+    # 检查SSH密钥文件权限
+    key_permissions=$(stat -c "%a" "$SSH_KEY_PATH")
+    if [ "$key_permissions" != "600" ]; then
+        echo "🔧 修正SSH密钥文件权限..."
+        sudo chmod 600 "$SSH_KEY_PATH"
+        echo "✅ SSH密钥文件权限已修正为600"
+    else
+        echo "✅ SSH密钥文件权限正确(600)"
+    fi
     
     # 设置正确的权限
     sudo chmod 600 "$SSH_KEY_PATH"
@@ -145,12 +165,14 @@ EOF
     
     # 测试 SSH 连接到 GitHub
     echo "🔍 测试 SSH 连接到 GitHub..."
-    if sudo -u root ssh -T git@github.com -o ConnectTimeout=10 2>&1 | grep -q "successfully authenticated"; then
+    ssh_test_result=$(sudo -u root ssh -T git@github.com -o ConnectTimeout=10 2>&1)
+    if echo "$ssh_test_result" | grep -q "successfully authenticated"; then
         echo "✅ SSH 连接到 GitHub 成功"
         ssh_works=true
     else
-        echo "⚠️ SSH 连接测试失败，但继续尝试克隆"
-        ssh_works=true  # 仍然尝试使用 SSH，可能是测试命令的问题
+        echo "⚠️ SSH 连接测试失败，输出: $ssh_test_result"
+        echo "🔄 继续尝试SSH克隆，可能是测试命令的问题"
+        ssh_works=true  # 仍然尝试使用 SSH
     fi
 else
     echo "❌ SSH 私钥文件不存在: $SSH_KEY_PATH"
@@ -170,34 +192,62 @@ sudo mkdir -p "$DEPLOY_DIR"
 cd /tmp
 rm -rf ai-novel-editor-clone
 
+# 更严格的克隆逻辑
+clone_success=false
+
 if [ "$ssh_works" = true ]; then
     echo "🔑 使用 SSH 方式克隆仓库..."
     echo "📋 仓库地址: $GITHUB_REPO"
     echo "🔐 使用密钥: $SSH_KEY_PATH"
     
-    if sudo -u root git clone "$GITHUB_REPO" ai-novel-editor-clone; then
+    # 尝试SSH克隆
+    if sudo -u root git clone "$GITHUB_REPO" ai-novel-editor-clone 2>&1; then
         echo "✅ SSH 克隆成功"
+        clone_success=true
     else
-        echo "❌ SSH 克隆失败，尝试 HTTPS 作为备选"
-        if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+        echo "❌ SSH 克隆失败"
+        echo "🔄 尝试 HTTPS 方式作为备选..."
+        
+        # 尝试HTTPS克隆
+        if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone 2>&1; then
             echo "✅ HTTPS 克隆成功"
+            clone_success=true
         else
-            echo "❌ 所有克隆方式都失败"
-            exit 1
+            echo "❌ HTTPS 克隆也失败"
+            clone_success=false
         fi
     fi
 else
     echo "🌐 使用 HTTPS 方式克隆仓库（SSH 密钥不可用）..."
-    if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+    if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone 2>&1; then
         echo "✅ HTTPS 克隆成功"
+        clone_success=true
     else
         echo "❌ HTTPS 克隆失败"
-        exit 1
+        clone_success=false
     fi
+fi
+
+# 检查克隆是否成功
+if [ "$clone_success" = false ]; then
+    echo "❌ 所有克隆方式都失败，无法获取代码"
+    echo "🔧 请检查:"
+    echo "  1. SSH密钥是否正确配置"
+    echo "  2. GitHub仓库是否可访问"
+    echo "  3. 网络连接是否正常"
+    exit 1
+fi
+
+# 检查克隆的代码目录
+if [ ! -d "ai-novel-editor-clone" ]; then
+    echo "❌ 克隆目录不存在，克隆可能失败"
+    exit 1
 fi
 
 sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
 sudo chown -R $USER:$USER "$DEPLOY_DIR"
+
+echo "✅ 代码克隆和复制完成"
 
 # ===== 7. 进入部署目录并配置环境 =====
 cd "$DEPLOY_DIR"
@@ -252,8 +302,37 @@ NOVEL_GENERATION_TOP_P=0.9
 EOF
 
 # ===== 8. 验证配置文件 =====
+echo "🔍 验证关键文件和配置..."
+
+# 检查关键文件是否存在
+REQUIRED_FILES=(
+    "docker-compose.production.yml"
+    "package.json"
+    "requirements.txt"
+)
+
+echo "📋 检查必需文件..."
+for file in "${REQUIRED_FILES[@]}"; do
+    if [ -f "$file" ]; then
+        echo "✅ $file 存在"
+    else
+        echo "❌ 关键文件 $file 丢失"
+        echo "🔧 请确认该文件已正确提交到仓库"
+        exit 1
+    fi
+done
+
+# 验证Docker Compose配置
 echo "🔍 验证 Docker Compose 配置..."
-sudo docker-compose -f docker-compose.production.yml config > /dev/null || echo "⚠️ Docker Compose 配置检查失败，但继续部署"
+if sudo docker-compose -f docker-compose.production.yml config > /dev/null 2>&1; then
+    echo "✅ Docker Compose 配置验证通过"
+else
+    echo "⚠️ Docker Compose 配置验证失败，但继续部署"
+    echo "🔧 可能的问题:"
+    echo "  1. docker-compose.production.yml 语法错误"
+    echo "  2. 环境变量配置问题"
+    echo "  3. 服务依赖配置问题"
+fi
 
 # ===== 9. 仅使用 Docker Compose 启动服务 =====
 echo "🚀 使用 Docker Compose 启动服务..."
@@ -275,15 +354,60 @@ BASE_IMAGES=(
 )
 
 # 使用百度云镜像拉取
+echo "🔄 使用百度云镜像源拉取基础镜像..."
+pull_failed_count=0
+
 for image in "${BASE_IMAGES[@]}"; do
     echo "🔄 拉取镜像: $image"
-    sudo docker pull "registry.baidubce.com/library/$image" 2>/dev/null || echo "⚠️ $image 拉取失败，构建时会自动拉取"
-    sudo docker tag "registry.baidubce.com/library/$image" "$image" 2>/dev/null || true
+    
+    # 尝试从百度云镜像源拉取
+    if sudo docker pull "registry.baidubce.com/library/$image" 2>/dev/null; then
+        # 添加标签以便后续使用
+        sudo docker tag "registry.baidubce.com/library/$image" "$image" 2>/dev/null || true
+        echo "✅ $image 拉取成功"
+    else
+        echo "⚠️ $image 拉取失败，构建时会自动拉取"
+        pull_failed_count=$((pull_failed_count + 1))
+    fi
 done
+
+# 显示拉取结果
+if [ $pull_failed_count -eq 0 ]; then
+    echo "✅ 所有基础镜像拉取成功"
+elif [ $pull_failed_count -lt ${#BASE_IMAGES[@]} ]; then
+    echo "⚠️ 部分基础镜像拉取失败 ($pull_failed_count/${#BASE_IMAGES[@]})，但不影响部署"
+else
+    echo "⚠️ 所有基础镜像拉取失败，依赖构建时自动拉取"
+fi
 
 # 启动服务
 echo "🔄 启动 Docker Compose 服务..."
-sudo docker-compose -f docker-compose.production.yml up -d --build 2>&1 | tee /tmp/docker-build.log || echo "⚠️ Docker Compose 启动可能存在问题，但继续检查"
+
+# 记录启动开始时间
+start_time=$(date +%s)
+
+# 启动Docker Compose服务
+echo "📋 执行命令: sudo docker-compose -f docker-compose.production.yml up -d --build"
+if sudo docker-compose -f docker-compose.production.yml up -d --build 2>&1 | tee /tmp/docker-build.log; then
+    echo "✅ Docker Compose 命令执行完成"
+else
+    echo "❌ Docker Compose 启动失败"
+    echo "🔍 最后30行构建日志:"
+    tail -30 /tmp/docker-build.log
+    
+    echo "🔧 可能的问题:"
+    echo "  1. 端口冲突 (检查8000、80端口是否被占用)"
+    echo "  2. 构建失败 (检查Dockerfile和依赖)"
+    echo "  3. 资源不足 (检查磁盘空间和内存)"
+    echo "  4. 网络问题 (检查镜像拉取)"
+    
+    echo "⚠️ 启动失败，但继续健康检查以确认服务状态"
+fi
+
+# 记录启动完成时间
+end_time=$(date +%s)
+duration=$((end_time - start_time))
+echo "⏱️ Docker Compose 启动耗时: ${duration}s"
 
 # 健康检查（简化）
 echo "⏳ 等待服务启动..."
