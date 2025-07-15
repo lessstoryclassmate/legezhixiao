@@ -185,14 +185,6 @@ else
     echo "3. 确认仓库访问权限"
     exit 1
 fi
-        sudo chmod 600 "$SSH_KEY_PATH"
-        echo -e "${GREEN}✅ SSH 密钥文件权限已修复为 600${NC}"
-    fi
-else
-    echo -e "${RED}❌ SSH 密钥文件不存在: $SSH_KEY_PATH${NC}"
-    echo -e "${YELLOW}💡 请确保密钥文件已正确部署到服务器${NC}"
-    exit 1
-fi
 
 # 2. 创建/更新 SSH 配置
 echo "🔧 配置 SSH 客户端..."
