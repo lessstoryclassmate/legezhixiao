@@ -120,32 +120,81 @@ sudo rm -rf "$DEPLOY_DIR"
 # ===== 6. 配置 SSH 密钥和克隆最新代码 =====
 echo "🔑 配置 SSH 密钥..."
 
-# SSH 密钥配置（简化）
+# SSH 密钥配置（根据需求文档）
 SSH_KEY_PATH="/root/.ssh/id_ed25519"
 if [ -f "$SSH_KEY_PATH" ]; then
-    echo "✅ SSH 密钥文件存在"
-    sudo chmod 600 "$SSH_KEY_PATH" 2>/dev/null || true
-    sudo chmod 700 /root/.ssh 2>/dev/null || true
-    ssh_works=true
+    echo "✅ SSH 私钥文件存在: $SSH_KEY_PATH"
+    
+    # 设置正确的权限
+    sudo chmod 600 "$SSH_KEY_PATH"
+    sudo chmod 700 /root/.ssh
+    
+    # 配置 SSH 客户端配置文件
+    sudo tee /root/.ssh/config > /dev/null <<EOF
+Host github.com
+    HostName github.com
+    User git
+    IdentityFile $SSH_KEY_PATH
+    IdentitiesOnly yes
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    ConnectTimeout 30
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+EOF
+    sudo chmod 600 /root/.ssh/config
+    
+    # 测试 SSH 连接到 GitHub
+    echo "🔍 测试 SSH 连接到 GitHub..."
+    if sudo -u root ssh -T git@github.com -o ConnectTimeout=10 2>&1 | grep -q "successfully authenticated"; then
+        echo "✅ SSH 连接到 GitHub 成功"
+        ssh_works=true
+    else
+        echo "⚠️ SSH 连接测试失败，但继续尝试克隆"
+        ssh_works=true  # 仍然尝试使用 SSH，可能是测试命令的问题
+    fi
 else
-    echo "⚠️ SSH 密钥文件不存在，使用HTTPS克隆"
+    echo "❌ SSH 私钥文件不存在: $SSH_KEY_PATH"
+    echo "📋 请确保私钥文件已正确部署到服务器"
+    echo "💡 如果是首次部署，请先上传私钥到服务器"
     ssh_works=false
 fi
 
-# Git 配置（简化）
+# Git 配置（根据需求文档）
 sudo -u root git config --global user.name "Deploy Bot" 2>/dev/null || true
 sudo -u root git config --global user.email "deploy@legezhixiao.com" 2>/dev/null || true
+sudo -u root git config --global core.sshCommand "ssh -i $SSH_KEY_PATH -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" 2>/dev/null || true
 
-# 克隆代码（简化）
+# 克隆代码（根据需求文档使用 SSH）
 echo "📥 克隆最新代码..."
 sudo mkdir -p "$DEPLOY_DIR"
 cd /tmp
 rm -rf ai-novel-editor-clone
 
 if [ "$ssh_works" = true ]; then
-    git clone "git@github.com:lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone
+    echo "🔑 使用 SSH 方式克隆仓库..."
+    echo "📋 仓库地址: git@github.com:lessstoryclassmate/legezhixiao.git"
+    echo "🔐 使用密钥: $SSH_KEY_PATH"
+    
+    if sudo -u root git clone "git@github.com:lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+        echo "✅ SSH 克隆成功"
+    else
+        echo "❌ SSH 克隆失败，尝试 HTTPS 作为备选"
+        if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+            echo "✅ HTTPS 克隆成功"
+        else
+            echo "❌ 所有克隆方式都失败"
+            exit 1
+        fi
+    fi
 else
-    git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone
+    echo "🌐 使用 HTTPS 方式克隆仓库（SSH 密钥不可用）..."
+    if git clone "https://github.com/lessstoryclassmate/legezhixiao.git" ai-novel-editor-clone; then
+        echo "✅ HTTPS 克隆成功"
+    else
+        echo "❌ HTTPS 克隆失败"
+        exit 1
+    fi
 fi
 
 sudo cp -r ai-novel-editor-clone/* "$DEPLOY_DIR"/
