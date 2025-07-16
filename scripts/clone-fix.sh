@@ -23,11 +23,40 @@ SSH_KEY_PATH="/root/.ssh/id_ed25519"
 SSH_CONFIG_PATH="/root/.ssh/config"
 DEPLOY_DIR="/opt/ai-novel-editor"
 PROJECT_NAME="ai-novel-editor"
+BAIDU_DNS="180.76.76.76"
 
 echo -e "${BLUE}📋 配置信息:${NC}"
 echo "  SSH仓库地址: $SSH_REPO_URL"
 echo "  SSH密钥路径: $SSH_KEY_PATH"
 echo "  部署目录: $DEPLOY_DIR"
+
+# ===== 0. 配置百度云DNS =====
+echo -e "${BLUE}🌐 0. 配置百度云DNS...${NC}"
+
+# 备份原DNS配置
+if [ -f "/etc/resolv.conf" ]; then
+    sudo cp /etc/resolv.conf /etc/resolv.conf.backup
+    echo -e "${GREEN}✅ 原DNS配置已备份${NC}"
+fi
+
+# 设置百度云DNS
+echo -e "${BLUE}🔧 设置百度云DNS为主DNS...${NC}"
+sudo bash -c "echo 'nameserver $BAIDU_DNS' > /etc/resolv.conf"
+sudo bash -c "echo 'nameserver 223.5.5.5' >> /etc/resolv.conf"
+sudo bash -c "echo 'nameserver 8.8.8.8' >> /etc/resolv.conf"
+
+echo -e "${GREEN}✅ DNS配置完成${NC}"
+echo "  主DNS: $BAIDU_DNS (百度云DNS)"
+echo "  备用DNS: 223.5.5.5 (阿里云DNS)"
+echo "  备用DNS: 8.8.8.8 (Google DNS)"
+
+# 测试DNS解析
+echo -e "${BLUE}🔍 测试DNS解析...${NC}"
+if nslookup github.com > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ DNS解析测试通过${NC}"
+else
+    echo -e "${YELLOW}⚠️ DNS解析测试失败，但继续执行${NC}"
+fi
 
 # ===== 1. 严格检查SSH密钥文件 =====
 echo -e "${BLUE}🔍 1. 检查SSH密钥文件...${NC}"
