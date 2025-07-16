@@ -16,8 +16,12 @@ jobs:
   quality-check:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
+    - name: Checkout private repository
       uses: actions/checkout@v4
+      with:
+        ssh-key: ${{ secrets.DEPLOY_SSH_KEY }}
+        ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+        ssh-strict: false
       
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -99,8 +103,12 @@ jobs:
     needs: quality-check
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
+    - name: Checkout private repository
       uses: actions/checkout@v4
+      with:
+        ssh-key: ${{ secrets.DEPLOY_SSH_KEY }}
+        ssh-known-hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+        ssh-strict: false
       
     - name: Install docker-compose
       run: sudo apt-get update && sudo apt-get install -y docker-compose
