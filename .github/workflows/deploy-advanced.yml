@@ -272,11 +272,6 @@ jobs:
             echo "❌ 部署脚本下载失败"
             exit 1
           fi
-          EOF
-          
-          # 执行增强部署脚本
-          chmod +x /tmp/enhanced-deploy.sh
-          bash /tmp/enhanced-deploy.sh
 
     - name: Wait for services to start
       run: |
