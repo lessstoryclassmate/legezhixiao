@@ -117,10 +117,24 @@ echo "🧹 清理旧版本..."
 sudo rm -rf "$DEPLOY_DIR"
 
 # ===== 6. 配置 SSH 密钥和克隆最新代码 =====
-echo "🔑 配置 SSH 密钥..."
+echo "🔑 执行SSH克隆修复..."
 
-# SSH 密钥配置（根据需求文档）
-SSH_KEY_PATH="/root/.ssh/id_ed25519"
+# 调用专门的SSH克隆修复脚本
+CLONE_FIX_SCRIPT="/workspaces/legezhixiao/scripts/clone-fix.sh"
+if [ -f "$CLONE_FIX_SCRIPT" ]; then
+    echo "📋 使用专门的SSH克隆修复脚本..."
+    if bash "$CLONE_FIX_SCRIPT"; then
+        echo "✅ SSH克隆修复成功"
+    else
+        echo "❌ SSH克隆修复失败"
+        exit 1
+    fi
+else
+    echo "⚠️ 克隆修复脚本不存在，使用内置克隆逻辑..."
+    
+    # 原有的克隆逻辑作为备用
+    # SSH 密钥配置（根据需求文档）
+    SSH_KEY_PATH="/root/.ssh/id_ed25519"
 
 # 严格检查SSH密钥文件
 if [ ! -f "$SSH_KEY_PATH" ]; then
