@@ -274,6 +274,7 @@ jobs:
           fi
           EOF
           
+          # 执行增强部署脚本
           chmod +x /tmp/enhanced-deploy.sh
           bash /tmp/enhanced-deploy.sh
 
