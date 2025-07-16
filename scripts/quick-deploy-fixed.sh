@@ -136,13 +136,14 @@ else
     # SSH 密钥配置（根据需求文档）
     SSH_KEY_PATH="/root/.ssh/id_ed25519"
 
-# 严格检查SSH密钥文件
-if [ ! -f "$SSH_KEY_PATH" ]; then
-    echo "❌ SSH密钥不存在: $SSH_KEY_PATH"
-    echo "🔧 请确保SSH密钥已正确部署到服务器"
-    echo "💡 生成SSH密钥命令: ssh-keygen -t ed25519 -f $SSH_KEY_PATH -N ''"
-    echo "📋 请将公钥添加到GitHub仓库的Deploy Keys中"
-    exit 1
+    # 严格检查SSH密钥文件
+    if [ ! -f "$SSH_KEY_PATH" ]; then
+        echo "❌ SSH密钥不存在: $SSH_KEY_PATH"
+        echo "🔧 请确保SSH密钥已正确部署到服务器"
+        echo "💡 生成SSH密钥命令: ssh-keygen -t ed25519 -f $SSH_KEY_PATH -N ''"
+        echo "📋 请将公钥添加到GitHub仓库的Deploy Keys中"
+        exit 1
+    fi
 fi
 
 if [ -f "$SSH_KEY_PATH" ]; then
@@ -473,7 +474,7 @@ elif [ "$backend_healthy" = true ]; then
 else
     echo "⚠️ 部署完成，服务可能需要更多时间启动"
     echo "🔍 后端服务: http://${SERVER_IP:-106.13.216.179}:8000"
-    echo "� 前端服务: http://${SERVER_IP:-106.13.216.179}"
+    echo "🔍 前端服务: http://${SERVER_IP:-106.13.216.179}"
 fi
 
 echo "=================================================================================="
