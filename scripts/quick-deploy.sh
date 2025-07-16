@@ -1,6 +1,7 @@
 #!/bin/bash
 # 快速部署脚本 - 修复版本
 # 专门解决 DNS 和 systemd 冲突问题
+# 支持Docker部署和本地部署两种模式
 
 set -e
 
@@ -13,6 +14,53 @@ DEPLOY_DIR="/opt/ai-novel-editor"
 GITHUB_REPOSITORY="lessstoryclassmate/legezhixiao"
 GITHUB_REPO_HTTPS="https://github.com/${GITHUB_REPOSITORY}.git"
 GITHUB_REPO_SSH="git@github.com:${GITHUB_REPOSITORY}.git"
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# ===== 0. 部署模式检测 =====
+echo -e "${BLUE}🔍 0. 检测部署模式...${NC}"
+
+# 检查Docker是否可用
+DOCKER_AVAILABLE=false
+LOCAL_DEPLOY_MODE=false
+
+if command -v docker &> /dev/null && docker info &> /dev/null; then
+    echo -e "${GREEN}✅ Docker服务运行正常${NC}"
+    DOCKER_AVAILABLE=true
+    
+    # 测试Docker镜像拉取
+    echo -e "${BLUE}🔍 测试Docker镜像拉取...${NC}"
+    if timeout 30 docker pull alpine:latest &> /dev/null; then
+        echo -e "${GREEN}✅ Docker镜像拉取正常${NC}"
+    else
+        echo -e "${RED}❌ Docker镜像拉取失败，切换到本地部署模式${NC}"
+        LOCAL_DEPLOY_MODE=true
+    fi
+else
+    echo -e "${RED}❌ Docker服务不可用，切换到本地部署模式${NC}"
+    LOCAL_DEPLOY_MODE=true
+fi
+
+# 强制使用本地部署模式（避免Docker镜像源问题）
+if [ "$LOCAL_DEPLOY_MODE" = true ] || [ "${FORCE_LOCAL_DEPLOY:-false}" = true ]; then
+    echo -e "${YELLOW}🔄 使用本地部署模式（避免Docker镜像源依赖）${NC}"
+    
+    # 检查是否有本地部署脚本
+    if [ -f "$DEPLOY_DIR/scripts/local-deploy.sh" ]; then
+        echo -e "${GREEN}✅ 找到本地部署脚本，开始执行...${NC}"
+        chmod +x "$DEPLOY_DIR/scripts/local-deploy.sh"
+        exec "$DEPLOY_DIR/scripts/local-deploy.sh"
+    else
+        echo -e "${YELLOW}⚠️ 本地部署脚本不存在，继续使用Docker部署模式${NC}"
+    fi
+fi
+
+echo -e "${BLUE}🐳 使用Docker部署模式${NC}"
 
 # ===== 1. 修复 DNS 配置（优# 预拉取基础镜像（Docker Hub 官方镜像，通过腾讯云加速器）
 echo "📦 预拉取基础镜像（Docker Hub 官方镜像，通过腾讯云加速器）..."

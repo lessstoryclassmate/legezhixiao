@@ -203,21 +203,69 @@ jobs:
           # 设置环境变量
           export SERVER_IP="${{ secrets.SERVER_IP }}"
           export GITHUB_REPOSITORY="${{ github.repository }}"
-          
-          # 创建增强部署脚本
-          cat > /tmp/enhanced-deploy.sh << 'EOF'
-          #!/bin/bash
-          set -e
-          
-          echo "🚀 开始增强部署流程..."
+          export FORCE_LOCAL_DEPLOY=true
           
           # 1. 立即修复 DNS（第一优先级）
           echo "🌐 立即修复 DNS 配置..."
-          sudo bash -c 'echo -e "nameserver 223.5.5.5\nnameserver 8.8.8.8" > /etc/resolv.conf'
-          echo "✅ DNS 已设置为阿里云和 Google DNS"
+          sudo bash -c 'echo -e "nameserver 180.76.76.76\nnameserver 223.5.5.5" > /etc/resolv.conf'
+          echo "✅ DNS 已设置为百度和阿里云 DNS"
           
           # 2. 彻底清理 systemd 冲突（第二优先级）
           echo "🧹 彻底清理 systemd 服务冲突..."
+          
+          # 停止所有可能冲突的服务
+          for service in ai-novel-editor ai-novel-editor.service novel-editor backend frontend; do
+            if systemctl list-unit-files | grep -q "^$service"; then
+              echo "🛑 停止服务: $service"
+              sudo systemctl stop $service 2>/dev/null || true
+              sudo systemctl disable $service 2>/dev/null || true
+            fi
+            
+            # 强制停止正在运行的服务
+            if systemctl is-active --quiet $service 2>/dev/null; then
+              echo "🛑 强制停止: $service"
+              sudo systemctl stop $service || true
+            fi
+            
+            # 移除服务文件
+            for path in /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system; do
+              if [ -f "$path/$service" ]; then
+                echo "🗑️ 移除: $path/$service"
+                sudo rm -f "$path/$service"
+              fi
+            done
+          done
+          
+          # 重新加载 systemd
+          sudo systemctl daemon-reload || true
+          sudo systemctl reset-failed || true
+          echo "✅ systemd 清理完成"
+          
+          # 3. 验证网络连通性
+          echo "� 验证网络连通性..."
+          if nslookup github.com > /dev/null 2>&1; then
+            echo "✅ 网络连通性正常"
+          else
+            echo "❌ 网络连通性异常，尝试其他 DNS..."
+            sudo bash -c 'echo -e "nameserver 8.8.8.8\nnameserver 114.114.114.114" > /etc/resolv.conf'
+          fi
+          
+          # 4. 下载并执行修复版部署脚本
+          echo "📥 下载修复版部署脚本..."
+          cd /tmp
+          rm -f quick-deploy.sh
+          
+          if curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/scripts/quick-deploy.sh -o quick-deploy.sh; then
+            echo "✅ 部署脚本下载成功"
+            chmod +x quick-deploy.sh
+            
+            # 执行部署（强制本地部署模式）
+            echo "🚀 执行修复版部署脚本（本地部署模式）..."
+            FORCE_LOCAL_DEPLOY=true bash quick-deploy.sh
+          else
+            echo "❌ 部署脚本下载失败"
+            exit 1
+          fi
           
           # 停止所有可能冲突的服务
           for service in ai-novel-editor ai-novel-editor.service novel-editor backend frontend; do
@@ -273,29 +321,42 @@ jobs:
             exit 1
           fi
 
-    - name: Wait for services to start
-      run: |
-        echo "⏳ 等待服务启动..."
-        sleep 60
-        
     - name: Health check
       run: |
         echo "🔍 执行健康检查..."
         
-        # 检查前端服务
-        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:80; then
-          echo "✅ 前端服务正常"
-        else
-          echo "❌ 前端服务异常"
-          exit 1
-        fi
+        # 等待服务启动
+        echo "⏳ 等待服务启动..."
+        sleep 60
         
-        # 检查后端API
-        if curl -f --max-time 30 http://${{ secrets.SERVER_IP }}:8000/health; then
-          echo "✅ 后端API正常"
+        # 下载健康检查脚本
+        cd /tmp
+        if curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/health-check.sh -o health-check.sh; then
+          echo "✅ 健康检查脚本下载成功"
+          chmod +x health-check.sh
+          
+          # 执行健康检查
+          echo "🚀 执行健康检查..."
+          bash health-check.sh
         else
-          echo "❌ 后端API异常"
-          exit 1
+          echo "❌ 健康检查脚本下载失败，使用简单检查"
+          
+          # 简单健康检查
+          echo "🔍 简单前端检查..."
+          if curl -f --max-time 30 http://localhost:80; then
+            echo "✅ 前端服务正常"
+          else
+            echo "❌ 前端服务异常"
+            exit 1
+          fi
+          
+          echo "🔍 简单后端检查..."
+          if curl -f --max-time 30 http://localhost:8000/health; then
+            echo "✅ 后端API正常"
+          else
+            echo "❌ 后端API异常"
+            exit 1
+          fi
         fi
         
     - name: Deployment notification
