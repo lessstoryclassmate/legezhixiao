@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后端 API 测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .endpoint {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .get { background-color: #61affe; }
+        .post { background-color: #49cc90; }
+        .put { background-color: #fca130; }
+        .delete { background-color: #f93e3e; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            border-left: 4px solid #28a745;
+        }
+        .error {
+            border-left: 4px solid #dc3545;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 乐格智小后端 API 测试</h1>
+        <p>基础 URL: <code id="baseUrl">http://localhost:3001</code></p>
+        
+        <div class="endpoint">
+            <h3><span class="method get">GET</span>/health</h3>
+            <p>健康检查接口</p>
+            <button onclick="testHealth()">测试</button>
+            <div id="health-response" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span>/api</h3>
+            <p>API 信息接口</p>
+            <button onclick="testApiInfo()">测试</button>
+            <div id="api-response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🔐 认证接口测试</h2>
+        
+        <div class="endpoint">
+            <h3><span class="method post">POST</span>/api/auth/register</h3>
+            <p>用户注册接口</p>
+            
+            <div class="form-group">
+                <label>用户名:</label>
+                <input type="text" id="reg-username" placeholder="输入用户名" value="testuser">
+            </div>
+            
+            <div class="form-group">
+                <label>邮箱:</label>
+                <input type="email" id="reg-email" placeholder="输入邮箱" value="test@example.com">
+            </div>
+            
+            <div class="form-group">
+                <label>密码:</label>
+                <input type="password" id="reg-password" placeholder="输入密码" value="123456">
+            </div>
+            
+            <div class="form-group">
+                <label>确认密码:</label>
+                <input type="password" id="reg-confirm" placeholder="确认密码" value="123456">
+            </div>
+            
+            <button onclick="testRegister()">注册</button>
+            <div id="register-response" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method post">POST</span>/api/auth/login</h3>
+            <p>用户登录接口</p>
+            
+            <div class="form-group">
+                <label>邮箱:</label>
+                <input type="email" id="login-email" placeholder="输入邮箱" value="test@example.com">
+            </div>
+            
+            <div class="form-group">
+                <label>密码:</label>
+                <input type="password" id="login-password" placeholder="输入密码" value="123456">
+            </div>
+            
+            <button onclick="testLogin()">登录</button>
+            <div id="login-response" class="response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoint">
+            <h3><span class="method get">GET</span>/api/auth/verify-token</h3>
+            <p>验证令牌接口</p>
+            
+            <div class="form-group">
+                <label>Access Token:</label>
+                <input type="text" id="verify-token" placeholder="输入 access token">
+            </div>
+            
+            <button onclick="testVerifyToken()">验证</button>
+            <div id="verify-response" class="response" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const baseUrl = 'http://localhost:3001';
+        let currentToken = null;
+
+        function showResponse(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `response ${isError ? 'error' : 'success'}`;
+            element.textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(options.headers || {})
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                return { data, ok: response.ok };
+            } catch (error) {
+                return { data: { error: error.message }, ok: false };
+            }
+        }
+
+        async function testHealth() {
+            const { data, ok } = await makeRequest(`${baseUrl}/health`);
+            showResponse('health-response', data, !ok);
+        }
+
+        async function testApiInfo() {
+            const { data, ok } = await makeRequest(`${baseUrl}/api`);
+            showResponse('api-response', data, !ok);
+        }
+
+        async function testRegister() {
+            const requestBody = {
+                username: document.getElementById('reg-username').value,
+                email: document.getElementById('reg-email').value,
+                password: document.getElementById('reg-password').value,
+                confirmPassword: document.getElementById('reg-confirm').value
+            };
+
+            const { data, ok } = await makeRequest(`${baseUrl}/api/auth/register`, {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+
+            if (ok && data.data && data.data.tokens) {
+                currentToken = data.data.tokens.accessToken;
+                document.getElementById('verify-token').value = currentToken;
+            }
+
+            showResponse('register-response', data, !ok);
+        }
+
+        async function testLogin() {
+            const requestBody = {
+                email: document.getElementById('login-email').value,
+                password: document.getElementById('login-password').value
+            };
+
+            const { data, ok } = await makeRequest(`${baseUrl}/api/auth/login`, {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+
+            if (ok && data.data && data.data.tokens) {
+                currentToken = data.data.tokens.accessToken;
+                document.getElementById('verify-token').value = currentToken;
+            }
+
+            showResponse('login-response', data, !ok);
+        }
+
+        async function testVerifyToken() {
+            const token = document.getElementById('verify-token').value;
+            
+            const { data, ok } = await makeRequest(`${baseUrl}/api/auth/verify-token`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            showResponse('verify-response', data, !ok);
+        }
+
+        // 页面加载时自动测试健康检查
+        window.onload = function() {
+            testHealth();
+            testApiInfo();
+        };
+    </script>
+</body>
+</html>

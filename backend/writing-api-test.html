@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>写作工具 API 测试</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        .section h3 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .api-test {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .get { background: #28a745; }
+        .post { background: #007bff; }
+        .put { background: #ffc107; color: #333; }
+        .delete { background: #dc3545; }
+        .endpoint {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .response {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+        .status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>写作工具 API 测试面板</h1>
+        <p>测试新创建的写作工具后端API端点功能</p>
+
+        <!-- 项目管理 API -->
+        <div class="section">
+            <h3>📚 项目管理 API</h3>
+            
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/api/writing/projects</div>
+                <p>获取用户的所有项目</p>
+                <button onclick="testAPI('GET', '/api/writing/projects', null, 'projects-list')">测试</button>
+                <div id="projects-list" class="response" style="display:none;"></div>
+            </div>
+
+            <div class="api-test">
+                <span class="method post">POST</span>
+                <div class="endpoint">/api/writing/projects</div>
+                <p>创建新项目</p>
+                <button onclick="testCreateProject()">测试创建项目</button>
+                <div id="create-project" class="response" style="display:none;"></div>
+            </div>
+
+            <div class="api-test">
+                <span class="method post">POST</span>
+                <div class="endpoint">/api/writing/projects/template</div>
+                <p>生成项目模板</p>
+                <button onclick="testProjectTemplate('fantasy')">奇幻模板</button>
+                <button onclick="testProjectTemplate('modern')">都市模板</button>
+                <button onclick="testProjectTemplate('romance')">言情模板</button>
+                <div id="project-template" class="response" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 章节管理 API -->
+        <div class="section">
+            <h3>📝 章节管理 API</h3>
+            
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/api/writing/projects/{projectId}/chapters</div>
+                <p>获取项目章节列表（需要先创建项目）</p>
+                <button onclick="testAPI('GET', '/api/writing/projects/test-project-id/chapters', null, 'chapters-list')">测试</button>
+                <div id="chapters-list" class="response" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 角色管理 API -->
+        <div class="section">
+            <h3>👥 角色管理 API</h3>
+            
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/api/writing/projects/{projectId}/characters</div>
+                <p>获取项目角色列表</p>
+                <button onclick="testAPI('GET', '/api/writing/projects/test-project-id/characters', null, 'characters-list')">测试</button>
+                <div id="characters-list" class="response" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 世界观设定 API -->
+        <div class="section">
+            <h3>🌍 世界观设定 API</h3>
+            
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/api/writing/projects/{projectId}/worldbuilding</div>
+                <p>获取项目世界观设定</p>
+                <button onclick="testAPI('GET', '/api/writing/projects/test-project-id/worldbuilding', null, 'worldbuilding-list')">测试</button>
+                <div id="worldbuilding-list" class="response" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 写作统计 API -->
+        <div class="section">
+            <h3>📊 写作统计 API</h3>
+            
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/api/stats/projects/{projectId}/stats/overview</div>
+                <p>获取写作概览统计</p>
+                <button onclick="testAPI('GET', '/api/stats/projects/test-project-id/stats/overview', null, 'stats-overview')">测试</button>
+                <div id="stats-overview" class="response" style="display:none;"></div>
+            </div>
+
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/api/stats/projects/{projectId}/stats/heatmap</div>
+                <p>获取写作热力图数据</p>
+                <button onclick="testAPI('GET', '/api/stats/projects/test-project-id/stats/heatmap', null, 'stats-heatmap')">测试</button>
+                <div id="stats-heatmap" class="response" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 健康检查 -->
+        <div class="section">
+            <h3>🔍 系统状态</h3>
+            
+            <div class="api-test">
+                <span class="method get">GET</span>
+                <div class="endpoint">/health</div>
+                <p>检查系统健康状态</p>
+                <button onclick="testAPI('GET', '/health', null, 'health-check')">检查</button>
+                <div id="health-check" class="response" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        async function testAPI(method, endpoint, data, responseId) {
+            const responseDiv = document.getElementById(responseId);
+            responseDiv.style.display = 'block';
+            responseDiv.innerHTML = '请求中...';
+            responseDiv.className = 'response';
+
+            try {
+                const options = {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                };
+
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                const response = await fetch(API_BASE + endpoint, options);
+                const result = await response.json();
+
+                responseDiv.className = response.ok ? 'response success' : 'response error';
+                responseDiv.innerHTML = `<div class="status">状态: ${response.status} ${response.statusText}</div>` +
+                                       JSON.stringify(result, null, 2);
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.innerHTML = `<div class="status">错误: ${error.message}</div>`;
+            }
+        }
+
+        function testCreateProject() {
+            const projectData = {
+                title: '测试小说项目',
+                genre: '奇幻',
+                description: '这是一个用于测试API的示例项目',
+                targetWords: 50000
+            };
+            testAPI('POST', '/api/writing/projects', projectData, 'create-project');
+        }
+
+        function testProjectTemplate(type) {
+            const templateData = {
+                templateType: type
+            };
+            testAPI('POST', '/api/writing/projects/template', templateData, 'project-template');
+        }
+
+        // 页面加载时自动检查系统状态
+        window.onload = function() {
+            testAPI('GET', '/health', null, 'health-check');
+        };
+    </script>
+</body>
+</html>
