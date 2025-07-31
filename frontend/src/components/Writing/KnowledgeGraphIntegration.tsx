@@ -122,15 +122,16 @@ const KnowledgeGraphIntegration: React.FC<KnowledgeGraphIntegrationProps> = ({
           <Paragraph>
             <strong>1. 数据库配置</strong>
             <br />
-            首次使用需要配置Neo4j数据库连接。如果您没有Neo4j数据库，可以使用Docker快速启动：
+            首次使用需要配置ArangoDB数据库连接。系统使用原生安装的ArangoDB服务：
           </Paragraph>
           
           <pre style={{ background: '#f5f5f5', padding: '12px', borderRadius: '6px' }}>
-            {`docker run --name neo4j \\
-  -p7474:7474 -p7687:7687 \\
-  -d \\
-  --env NEO4J_AUTH=neo4j/password \\
-  neo4j:latest`}
+            {`# 安装ArangoDB (Ubuntu/Debian)
+sudo apt install arangodb3
+
+# 启动服务
+sudo systemctl start arangodb3
+sudo systemctl enable arangodb3`}
           </pre>
 
           <Paragraph>

@@ -26,11 +26,12 @@
         "markdown-it": "^13.0.2",
         "monaco-editor": "^0.44.0",
         "nanoid": "^5.0.3",
-        "neo4j-driver": "^5.28.1",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-router-dom": "^6.18.0",
         "reactflow": "^11.11.4",
+        "rxdb": "^16.16.0",
+        "rxjs": "^7.8.2",
         "socket.io-client": "^4.8.1",
         "zustand": "^4.4.7"
     },

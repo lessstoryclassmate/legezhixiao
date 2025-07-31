@@ -38,12 +38,12 @@ try {
 
 try {
   const path = require('path');
-  const dbConfigPath = path.join(__dirname, 'config', 'database');
+  const dbConfigPath = path.join(__dirname, 'config', 'arangodb');
   console.log(`🔍 正在导入模块: ${dbConfigPath}`);
   databaseConfig = require(dbConfigPath).default;
-  console.log('✅ database config 导入成功');
+  console.log('✅ ArangoDB config 导入成功');
 } catch (error) {
-  logError('数据库配置导入', error);
+  logError('ArangoDB配置导入', error);
   process.exit(1);
 }
 
@@ -220,6 +220,15 @@ app.use('/api/stats', writingStatsRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/upload', uploadRoutes);
 
+// RxDB 同步路由
+startupStep(() => {
+  const syncRoutes = safeRequire('./routes/sync');
+  if (syncRoutes) {
+    app.use('/api/sync', syncRoutes.default || syncRoutes);
+    console.log('✅ 同步路由已加载');
+  }
+}, '同步路由');
+
 // API 根路径
 app.get('/api', (req, res) => {
   res.json({
@@ -289,8 +298,9 @@ app.use(errorHandler);
 async function startServer() {
   try {
     // 连接数据库
-    await startupStep('连接数据库', async () => {
-      await databaseConfig.connectSQLite();
+    await startupStep('连接ArangoDB数据库', async () => {
+      await databaseConfig.connectArangoDB();
+      logger.info('ArangoDB多模态数据库连接成功');
     });
 
     // 创建上传目录

@@ -10,7 +10,7 @@
 - 📊 **项目管理**: 完整的小说项目管理工具
 - 👥 **用户系统**: 完整的认证和权限管理
 - 🔗 **实时协作**: Socket.io实时编辑和协作
-- 💾 **双数据库**: MongoDB + IndexedDB 混合存储方案
+- 💾 **现代数据库**: RXDB + ArangoDB 响应式架构
 - 📈 **写作统计**: 详细的写作进度和分析
 
 ## 🏗️ 技术架构
@@ -21,12 +21,12 @@
 - **Ant Design** - 企业级UI组件库
 - **Monaco Editor** - VS Code编辑器内核
 - **Zustand** - 轻量级状态管理
-- **IndexedDB** - 本地数据存储
+- **RXDB** - 响应式离线优先数据库
 
 ### 后端技术栈
 - **Node.js** + **Express** - 高性能Web服务器
 - **TypeScript** - 类型安全的JavaScript
-- **MongoDB** + **Mongoose** - 文档数据库
+- **ArangoDB** - 多模型图数据库
 - **Redis** - 缓存和会话存储
 - **Socket.io** - 实时通信
 - **JWT** - 安全认证机制
@@ -35,7 +35,7 @@
 
 ### 环境要求
 - Node.js >= 18.0.0
-- MongoDB >= 5.0
+- ArangoDB >= 3.9.0
 - Redis >= 6.0 (可选)
 
 ### 前端开发
@@ -74,11 +74,31 @@ npm run dev
 ### 数据库设置
 
 ```bash
-# MongoDB (使用Docker)
-docker run -d --name mongodb -p 27017:27017 mongo:latest
+# ArangoDB (原生安装)
+sudo systemctl start arangodb3
 
-# Redis (使用Docker)
-docker run -d --name redis -p 6379:6379 redis:latest
+# Redis (原生安装)  
+sudo apt install redis-server
+sudo systemctl start redis-server
+```
+
+## 📚 详细文档
+
+- **[项目规格书](PROJECT_SPECIFICATION_FINAL.md)** - 完整的技术规格和架构说明
+- **[生产部署指南](PRODUCTION_NATIVE_DEPLOYMENT.md)** - 详细的生产环境部署步骤
+- **[项目完成报告](PROJECT_COMPLETION_REPORT.md)** - 项目实施状态和成果
+
+## 🔄 开发工作流
+
+### 使用预配置脚本
+
+```bash
+# 启动RXDB + ArangoDB技术栈
+./start-rxdb-stack.sh
+
+# 或者分别启动前后端
+npm run dev:frontend
+npm run dev:backend
 ```
 
 ### 访问应用
@@ -91,63 +111,61 @@ docker run -d --name redis -p 6379:6379 redis:latest
 
 ```
 legezhixiao/
-├── README.md
-├── package.json              # 根级包管理
-├── setup-frontend.sh         # 前端环境设置脚本
-├── frontend/                 # React前端应用
+├── README.md                        # 项目介绍和快速开始
+├── PROJECT_SPECIFICATION_FINAL.md  # 完整技术规格书  
+├── PRODUCTION_NATIVE_DEPLOYMENT.md # 生产部署指南
+├── PROJECT_COMPLETION_REPORT.md    # 项目完成报告
+├── package.json                    # 根级包管理
+├── start-rxdb-stack.sh            # RXDB技术栈启动脚本
+├── frontend/                       # React前端应用
 │   ├── src/
-│   │   ├── components/       # React组件
-│   │   │   ├── AI/          # AI相关组件
-│   │   │   ├── Auth/        # 认证相关组件
-│   │   │   ├── Layout/      # 布局组件
-│   │   │   └── Writing/     # 写作相关组件
-│   │   ├── contexts/        # React Context
-│   │   ├── hooks/           # 自定义Hooks
-│   │   ├── pages/           # 页面组件
-│   │   ├── services/        # API服务
-│   │   ├── store/           # 状态管理
-│   │   ├── styles/          # 样式文件
-│   │   └── types/           # TypeScript类型
-│   ├── package.json         # 前端依赖
-│   └── vite.config.ts       # Vite配置
-└── backend/                  # Node.js后端应用
+│   │   ├── components/            # React组件
+│   │   │   ├── AI/               # AI相关组件
+│   │   │   ├── Auth/             # 认证相关组件
+│   │   │   ├── Layout/           # 布局组件
+│   │   │   └── Writing/          # 写作相关组件
+│   │   ├── contexts/             # React Context
+│   │   ├── hooks/                # 自定义Hooks
+│   │   ├── pages/                # 页面组件
+│   │   ├── services/             # API服务和RXDB配置
+│   │   ├── store/                # Zustand状态管理
+│   │   ├── styles/               # 样式文件
+│   │   └── types/                # TypeScript类型
+│   ├── package.json              # 前端依赖
+│   └── vite.config.ts            # Vite配置
+└── backend/                       # Node.js后端应用
     ├── src/
-    │   ├── config/          # 配置文件
-    │   ├── controllers/     # 控制器
-    │   ├── middleware/      # 中间件
-    │   ├── models/          # 数据模型
-    │   ├── routes/          # 路由定义
-    │   ├── services/        # 业务服务
-    │   ├── utils/           # 工具函数
-    │   ├── types/           # TypeScript类型
-    │   └── server.ts        # 服务器入口
-    ├── package.json         # 后端依赖
-    ├── tsconfig.json        # TypeScript配置
-    ├── .env.example         # 环境变量模板
-    └── api-test.html        # API测试页面
-```
-    │   │   ├── Layout/     # 布局组件
-    │   │   └── Writing/    # 写作相关组件
-    │   ├── pages/          # 页面组件
-    │   ├── store/          # Zustand状态管理
-    │   ├── types/          # TypeScript类型定义
-    │   └── services/       # API服务
-    ├── public/             # 静态资源
-    ├── package.json        # 前端依赖
-    ├── vite.config.ts      # Vite配置
-    └── tsconfig.json       # TypeScript配置
+    │   ├── config/               # 配置文件(ArangoDB等)
+    │   ├── controllers/          # 控制器
+    │   ├── middleware/           # 中间件
+    │   ├── models/               # 数据模型
+    │   ├── routes/               # 路由定义
+    │   ├── services/             # 业务服务
+    │   ├── utils/                # 工具函数
+    │   ├── types/                # TypeScript类型
+    │   └── server.ts             # 服务器入口
+    ├── package.json              # 后端依赖
+    ├── tsconfig.json             # TypeScript配置
+    └── .env.example              # 环境变量模板
 ```
 
 ## 🛠️ 技术栈
 
 ### 前端技术
 - **React 18**: 现代化UI框架
-- **TypeScript**: 类型安全的JavaScript
+- **TypeScript**: 类型安全的JavaScript  
 - **Vite**: 快速的构建工具
 - **Monaco Editor**: VS Code编辑器核心
 - **Ant Design**: 企业级UI组件库
 - **Zustand**: 轻量级状态管理
+- **RXDB**: 响应式离线优先数据库
 - **React Query**: 数据获取和缓存
+
+### 后端技术
+- **Node.js + Express**: 高性能Web服务器
+- **TypeScript**: 类型安全开发
+- **ArangoDB**: 多模型图数据库
+- **Socket.io**: 实时通信
 
 ### 开发工具
 - **ESLint**: 代码质量检查
@@ -262,6 +280,8 @@ npm test
 - [Monaco Editor](https://microsoft.github.io/monaco-editor/) - 编辑器核心
 - [Ant Design](https://ant.design/) - UI 组件库
 - [Vite](https://vitejs.dev/) - 构建工具
+- [RXDB](https://rxdb.info/) - 响应式数据库
+- [ArangoDB](https://www.arangodb.com/) - 多模型数据库
 - [SiliconFlow](https://siliconflow.cn/) - AI 服务提供商
 
 ---

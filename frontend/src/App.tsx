@@ -5,6 +5,7 @@ import FloatingAIButton from './components/AI/FloatingAIButton'
 import { DraggableAIWindow } from './components/AI/DraggableAIWindow'
 import AppHeader from './components/Layout/AppHeader'
 import Sidebar from './components/Layout/Sidebar'
+import RxDBProvider, { SyncStatusIndicator, ConnectionStatus, DatabaseDebugPanel } from './components/RxDBProvider'
 import { AuthProvider } from './contexts/AuthContext'
 import { EditorProvider, useEditor } from './contexts/EditorContext'
 import { AIProvider } from './contexts/AIContext'
@@ -15,6 +16,7 @@ import WritingInterfaceOptimized from './pages/WritingInterfaceOptimized'
 import CreativeToolsPage from './pages/CreativeToolsPage'
 import CharacterManagementPage from './pages/CharacterManagementPage'
 import WorldBuildingPage from './pages/WorldBuildingPage'
+import RxDBTestPage from './pages/RxDBTestPage'
 import { useAppStore } from './store/appStore'
 
 const { Content } = Layout
@@ -44,10 +46,17 @@ const AppContent: React.FC = () => {
                             <Route path="/project/:id/characters" element={<CharacterManagementPage />} />
                             <Route path="/project/:id/world" element={<WorldBuildingPage />} />
                             <Route path="/project/:id/settings" element={<ProjectSettings />} />
+                            <Route path="/rxdb-test" element={<RxDBTestPage />} />
                         </Routes>
                     </Content>
                 </Layout>
             </Layout>
+
+            {/* 数据同步状态指示器 */}
+            <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+                <ConnectionStatus />
+                <SyncStatusIndicator />
+            </div>
 
             {/* 全局浮动AI助手按钮 */}
             <FloatingAIButton
@@ -64,6 +73,9 @@ const AppContent: React.FC = () => {
                 targetWordCount={50000}
                 sessionTime={45}
             />
+
+            {/* 开发调试面板 */}
+            <DatabaseDebugPanel />
         </Layout>
     )
 }
@@ -71,11 +83,13 @@ const AppContent: React.FC = () => {
 function App() {
     return (
         <AuthProvider>
-            <EditorProvider>
-                <AIProvider>
-                    <AppContent />
-                </AIProvider>
-            </EditorProvider>
+            <RxDBProvider>
+                <EditorProvider>
+                    <AIProvider>
+                        <AppContent />
+                    </AIProvider>
+                </EditorProvider>
+            </RxDBProvider>
         </AuthProvider>
     )
 }

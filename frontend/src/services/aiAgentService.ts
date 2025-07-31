@@ -2,30 +2,9 @@ import { NovelProject, Character, Chapter, ChapterStatus } from '../types'
 import { projectService } from './projectService'
 import { ProjectContentAnalyzer } from './projectAnalyzer'
 import AIServiceManager from './aiService'
-import { Neo4jKnowledgeGraphService, GraphNode, GraphRelationship, GraphData } from './neo4jService'
+import { knowledgeGraphService, GraphNode, GraphRelationship } from './knowledgeGraphService'
 
 const aiService = AIServiceManager.getInstance()
-let neo4jService: Neo4jKnowledgeGraphService | null = null
-
-// 初始化Neo4j服务（如果可用）
-const initializeNeo4jService = async () => {
-  try {
-    // 检查是否有Neo4j配置
-    const config = localStorage.getItem('neo4j-config')
-    if (config) {
-      const parsedConfig = JSON.parse(config)
-      neo4jService = new Neo4jKnowledgeGraphService(parsedConfig)
-      await neo4jService.initialize()
-      console.log('AI Agent已连接到知识图谱服务')
-    }
-  } catch (error) {
-    console.warn('无法连接到知识图谱服务:', error)
-    neo4jService = null
-  }
-}
-
-// 立即尝试初始化
-initializeNeo4jService()
 
 /**
  * AI Agent 功能模块接口
@@ -2342,11 +2321,12 @@ ${this.context.currentCharacters.map(c => `${c.name}: ${c.personality}`).join('\
    * 在知识图谱中搜索相关信息
    */
   private async searchKnowledgeGraph(params: any): Promise<any> {
-    if (!neo4jService) {
+    const isAvailable = await knowledgeGraphService.isAvailable()
+    if (!isAvailable) {
       return {
         success: false,
         error: '知识图谱服务未连接',
-        suggestion: '请先配置并连接Neo4j数据库'
+        suggestion: '知识图谱服务暂时不可用，请检查后端连接'
       }
     }
 
@@ -2360,17 +2340,17 @@ ${this.context.currentCharacters.map(c => `${c.name}: ${c.personality}`).join('\
       }
 
       // 根据搜索类型构建不同的查询
-      let searchResults: GraphData
+      let searchResults: GraphNode[]
       
       if (searchType === 'character') {
-        searchResults = await neo4jService.searchNodes(projectId, 'CHARACTER', query)
+        searchResults = await knowledgeGraphService.searchNodes(projectId, 'CHARACTER', query)
       } else if (searchType === 'location') {
-        searchResults = await neo4jService.searchNodes(projectId, 'LOCATION', query)
+        searchResults = await knowledgeGraphService.searchNodes(projectId, 'LOCATION', query)
       } else if (searchType === 'event') {
-        searchResults = await neo4jService.searchNodes(projectId, 'EVENT', query)
+        searchResults = await knowledgeGraphService.searchNodes(projectId, 'EVENT', query)
       } else {
         // 全文搜索
-        searchResults = await neo4jService.searchNodes(projectId, undefined, query)
+        searchResults = await knowledgeGraphService.searchNodes(projectId, undefined, query)
       }
 
       // 分析搜索结果并生成AI建议
@@ -2414,7 +2394,8 @@ ${searchResults.relationships.map(rel => `- ${rel.type}: ${rel.description}`).jo
    * 获取角色关系网络
    */
   private async getCharacterRelationships(params: any): Promise<any> {
-    if (!neo4jService) {
+    const isAvailable = await knowledgeGraphService.isAvailable()
+    if (!isAvailable) {
       return {
         success: false,
         error: '知识图谱服务未连接'
@@ -2430,9 +2411,9 @@ ${searchResults.relationships.map(rel => `- ${rel.type}: ${rel.description}`).jo
       }
 
       // 查找角色节点
-      const characterNodes = await neo4jService.searchNodes(projectId, 'CHARACTER', characterName)
+      const characterNodes = await knowledgeGraphService.searchNodes(projectId, 'CHARACTER', characterName)
       
-      if (characterNodes.nodes.length === 0) {
+      if (characterNodes.length === 0) {
         return {
           success: false,
           error: `未找到角色：${characterName}`,
@@ -2440,10 +2421,10 @@ ${searchResults.relationships.map(rel => `- ${rel.type}: ${rel.description}`).jo
         }
       }
 
-      const characterNode = characterNodes.nodes[0]
+      const characterNode = characterNodes[0]
 
       // 获取该角色的所有关系
-      const relationships = await neo4jService.getNodeRelationships(characterNode.id)
+      const relationships = await knowledgeGraphService.getNodeRelationships(characterNode.id)
 
       // 分析关系网络
       const analysisPrompt = `
@@ -2451,14 +2432,12 @@ ${searchResults.relationships.map(rel => `- ${rel.type}: ${rel.description}`).jo
 
 角色信息：
 - 名称：${characterNode.name}
-- 描述：${characterNode.description}
-- 重要程度：${characterNode.importance}
+- 属性：${JSON.stringify(characterNode.properties, null, 2)}
 
 关系网络：
-${relationships.relationships.map(rel => {
-  const otherNode = relationships.nodes.find(n => n.id === rel.endNodeId || n.id === rel.startNodeId)
-  return `- ${rel.type}：与"${otherNode?.name}"的关系（强度：${rel.strength}%）`
-}).join('\n')}
+${relationships.map(rel => 
+  `- ${rel.type}：关系属性（${JSON.stringify(rel.properties, null, 2)}）`
+).join('\n')}
 
 请分析：
 1. 关系网络的复杂度和合理性
@@ -2492,7 +2471,8 @@ ${relationships.relationships.map(rel => {
    * 分析情节连接
    */
   private async analyzePlotConnections(): Promise<any> {
-    if (!neo4jService) {
+    const isAvailable = await knowledgeGraphService.isAvailable()
+    if (!isAvailable) {
       return {
         success: false,
         error: '知识图谱服务未连接'
@@ -2507,8 +2487,8 @@ ${relationships.relationships.map(rel => {
       }
 
       // 获取所有事件节点
-      const events = await neo4jService.searchNodes(projectId, 'EVENT')
-      const plotPoints = await neo4jService.searchNodes(projectId, 'PLOT_POINT')
+      const events = await knowledgeGraphService.searchNodes(projectId, 'EVENT')
+      const plotPoints = await knowledgeGraphService.searchNodes(projectId, 'PLOT_POINT')
       
       // 合并事件和情节点
       const allPlotElements = [...events.nodes, ...plotPoints.nodes]
@@ -2560,7 +2540,8 @@ ${allRelationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\n')}
    * 获取世界观元素
    */
   private async getWorldElements(params: any): Promise<any> {
-    if (!neo4jService) {
+    const isAvailable = await knowledgeGraphService.isAvailable()
+    if (!isAvailable) {
       return {
         success: false,
         error: '知识图谱服务未连接'
@@ -2576,7 +2557,7 @@ ${allRelationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\n')}
       }
 
       // 获取指定类型的世界观元素
-      const elements = await neo4jService.searchNodes(projectId, elementType as any)
+      const elements = await knowledgeGraphService.searchNodes(projectId, elementType as any)
 
       // 生成世界观分析
       const analysisPrompt = `
@@ -2621,7 +2602,8 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
    * 在知识图谱中创建新节点
    */
   private async createKnowledgeNode(params: any): Promise<any> {
-    if (!neo4jService) {
+    const isAvailable = await knowledgeGraphService.isAvailable()
+    if (!isAvailable) {
       return {
         success: false,
         error: '知识图谱服务未连接'
@@ -2647,13 +2629,16 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
         projectId: projectId
       }
 
-      const newNode = await neo4jService.createNode(nodeData)
+      const newNode = await knowledgeGraphService.createNode(nodeData)
 
       // 如果当前有章节，关联到当前章节
       if (this.context.currentChapter) {
-        await neo4jService.updateNode(newNode.id, {
+        await knowledgeGraphService.updateNode(newNode.id, {
           ...newNode,
-          chapterIds: [...(newNode.chapterIds || []), this.context.currentChapter.id]
+          properties: {
+            ...newNode.properties,
+            chapterIds: [...(newNode.properties.chapterIds || []), this.context.currentChapter.id]
+          }
         })
       }
 
@@ -2676,7 +2661,8 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
    * 在知识图谱中创建关系
    */
   private async createKnowledgeRelationship(params: any): Promise<any> {
-    if (!neo4jService) {
+    const isAvailable = await knowledgeGraphService.isAvailable()
+    if (!isAvailable) {
       return {
         success: false,
         error: '知识图谱服务未连接'
@@ -2691,8 +2677,8 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
       }
 
       // 查找起始和结束节点
-      const startNodes = await neo4jService.searchNodes(projectId, undefined, params.startNode)
-      const endNodes = await neo4jService.searchNodes(projectId, undefined, params.endNode)
+      const startNodes = await knowledgeGraphService.searchNodes(projectId, undefined, params.startNode)
+      const endNodes = await knowledgeGraphService.searchNodes(projectId, undefined, params.endNode)
 
       if (startNodes.nodes.length === 0) {
         throw new Error(`未找到起始节点：${params.startNode}`)
@@ -2715,7 +2701,7 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
         status: 'CURRENT' as GraphRelationship['status']
       }
 
-      const newRelationship = await neo4jService.createRelationship(relationshipData)
+      const newRelationship = await knowledgeGraphService.createRelationship(relationshipData)
 
       return {
         success: true,
@@ -2733,12 +2719,11 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
   }
 
   /**
-   * 重新连接Neo4j服务
+   * 重新连接知识图谱服务
    */
   async reconnectKnowledgeGraph(): Promise<boolean> {
     try {
-      await initializeNeo4jService()
-      return neo4jService !== null
+      return await knowledgeGraphService.isAvailable()
     } catch (error) {
       console.error('重新连接知识图谱失败:', error)
       return false
@@ -2748,8 +2733,8 @@ ${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\
   /**
    * 检查知识图谱连接状态
    */
-  isKnowledgeGraphConnected(): boolean {
-    return neo4jService !== null
+  async isKnowledgeGraphConnected(): Promise<boolean> {
+    return await knowledgeGraphService.isAvailable()
   }
       })
       

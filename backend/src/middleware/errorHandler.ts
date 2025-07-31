@@ -31,23 +31,21 @@ const sendErrorProd = (err: AppError, res: Response) => {
   }
 };
 
-// 处理 MongoDB 转换错误
+// 处理 ArangoDB 转换错误
 const handleCastErrorDB = (err: any): AppError => {
-  const message = `无效的 ${err.path}: ${err.value}`;
+  const message = `无效的数据格式: ${err.message}`;
   return new AppError(message, 400);
 };
 
-// 处理 MongoDB 重复键错误
+// 处理 ArangoDB 重复键错误
 const handleDuplicateFieldsDB = (err: any): AppError => {
-  const value = err.errmsg.match(/(["'])(\\?.)*?\1/)[0];
-  const message = `重复的字段值: ${value}，请使用其他值！`;
+  const message = `重复的数据，请使用其他值！`;
   return new AppError(message, 400);
 };
 
-// 处理 MongoDB 验证错误
+// 处理 ArangoDB 验证错误
 const handleValidationErrorDB = (err: any): AppError => {
-  const errors = Object.values(err.errors).map((el: any) => el.message);
-  const message = `无效的输入数据: ${errors.join(', ')}`;
+  const message = `无效的输入数据: ${err.message}`;
   return new AppError(message, 400);
 };
 
@@ -82,9 +80,9 @@ export const errorHandler = (
     userAgent: req.get('User-Agent'),
   });
 
-  // MongoDB 错误处理
+  // ArangoDB 错误处理
   if (err.name === 'CastError') error = handleCastErrorDB(error);
-  if (err.code === 11000) error = handleDuplicateFieldsDB(error);
+  if (err.code === 11000 || err.errorNum === 1210) error = handleDuplicateFieldsDB(error);
   if (err.name === 'ValidationError') error = handleValidationErrorDB(error);
   if (err.name === 'JsonWebTokenError') error = handleJWTError();
   if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
