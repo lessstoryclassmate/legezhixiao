@@ -2,8 +2,30 @@ import { NovelProject, Character, Chapter, ChapterStatus } from '../types'
 import { projectService } from './projectService'
 import { ProjectContentAnalyzer } from './projectAnalyzer'
 import AIServiceManager from './aiService'
+import { Neo4jKnowledgeGraphService, GraphNode, GraphRelationship, GraphData } from './neo4jService'
 
 const aiService = AIServiceManager.getInstance()
+let neo4jService: Neo4jKnowledgeGraphService | null = null
+
+// 初始化Neo4j服务（如果可用）
+const initializeNeo4jService = async () => {
+  try {
+    // 检查是否有Neo4j配置
+    const config = localStorage.getItem('neo4j-config')
+    if (config) {
+      const parsedConfig = JSON.parse(config)
+      neo4jService = new Neo4jKnowledgeGraphService(parsedConfig)
+      await neo4jService.initialize()
+      console.log('AI Agent已连接到知识图谱服务')
+    }
+  } catch (error) {
+    console.warn('无法连接到知识图谱服务:', error)
+    neo4jService = null
+  }
+}
+
+// 立即尝试初始化
+initializeNeo4jService()
 
 /**
  * AI Agent 功能模块接口
@@ -198,6 +220,48 @@ export class AIAgentService {
     })
 
     // 高级创作工具
+    this.registerAction({
+      type: 'search_knowledge_graph',
+      description: '在知识图谱中搜索相关信息',
+      execute: this.searchKnowledgeGraph.bind(this),
+      validate: (params) => params.query
+    })
+
+    this.registerAction({
+      type: 'get_character_relationships',
+      description: '获取角色关系网络',
+      execute: this.getCharacterRelationships.bind(this),
+      validate: (params) => params.characterName
+    })
+
+    this.registerAction({
+      type: 'analyze_plot_connections',
+      description: '分析情节连接',
+      execute: this.analyzePlotConnections.bind(this)
+    })
+
+    this.registerAction({
+      type: 'get_world_elements',
+      description: '获取世界观元素',
+      execute: this.getWorldElements.bind(this),
+      validate: (params) => params.elementType
+    })
+
+    this.registerAction({
+      type: 'create_knowledge_node',
+      description: '在知识图谱中创建新节点',
+      execute: this.createKnowledgeNode.bind(this),
+      validate: (params) => params.name && params.type
+    })
+
+    this.registerAction({
+      type: 'create_knowledge_relationship',
+      description: '在知识图谱中创建关系',
+      execute: this.createKnowledgeRelationship.bind(this),
+      validate: (params) => params.startNode && params.endNode && params.relationshipType
+    })
+
+    // 原有的高级创作工具
     this.registerAction({
       type: 'generate_plot_twist',
       description: '生成剧情转折',
@@ -718,6 +782,87 @@ export class AIAgentService {
         actions: [],
         response: '我可以帮您深化主题表达。请告诉我想要探讨的主题。',
         suggestions: ['强化主题表达', '添加象征元素', '增强思想深度']
+      }
+    }
+
+    // 知识图谱相关关键词识别
+    if (lowerInput.includes('知识图谱') || lowerInput.includes('关系网络') || lowerInput.includes('图谱')) {
+      if (lowerInput.includes('搜索') || lowerInput.includes('查找') || lowerInput.includes('检索')) {
+        const query = input.replace(/.*?(搜索|查找|检索)\s*/, '').replace(/在?知识图谱中?/, '').trim()
+        if (query) {
+          return {
+            actions: [{ type: 'search_knowledge_graph', params: { query, searchType: 'general' } }],
+            response: `正在知识图谱中搜索"${query}"...`,
+            suggestions: ['查看搜索结果', '分析相关关系', '应用到当前创作']
+          }
+        }
+      }
+      return {
+        actions: [],
+        response: '我可以帮您操作知识图谱。请告诉我具体需要做什么，比如搜索信息、查看关系、创建节点等。',
+        suggestions: ['搜索角色信息', '查看角色关系', '分析情节连接', '获取世界观元素']
+      }
+    }
+
+    if (lowerInput.includes('角色关系') || lowerInput.includes('人物关系') || lowerInput.includes('关系分析')) {
+      const characterMatch = input.match(/["'《](.*?)["'》]/) || input.match(/角色[：:]\s*([^\s,，]+)/) || input.match(/人物[：:]\s*([^\s,，]+)/)
+      const characterName = characterMatch ? characterMatch[1] : ''
+      
+      if (characterName) {
+        return {
+          actions: [{ type: 'get_character_relationships', params: { characterName } }],
+          response: `正在分析"${characterName}"的角色关系网络...`,
+          suggestions: ['探索关系动态', '创造冲突情节', '深化关系层次']
+        }
+      } else {
+        return {
+          actions: [],
+          response: '请告诉我要分析哪个角色的关系，例如："分析李明的角色关系"',
+          suggestions: ['指定角色名称', '查看所有角色', '分析主要角色关系']
+        }
+      }
+    }
+
+    if (lowerInput.includes('情节连接') || lowerInput.includes('剧情分析') || lowerInput.includes('情节分析')) {
+      return {
+        actions: [{ type: 'analyze_plot_connections', params: {} }],
+        response: '正在分析情节连接结构...',
+        suggestions: ['填补情节空隙', '优化情节节奏', '加强伏笔设置']
+      }
+    }
+
+    if (lowerInput.includes('世界观') || lowerInput.includes('设定') && (lowerInput.includes('获取') || lowerInput.includes('查看'))) {
+      let elementType = 'LOCATION'
+      if (lowerInput.includes('地点') || lowerInput.includes('地理') || lowerInput.includes('位置')) {
+        elementType = 'LOCATION'
+      } else if (lowerInput.includes('组织') || lowerInput.includes('团体') || lowerInput.includes('势力')) {
+        elementType = 'ORGANIZATION'
+      } else if (lowerInput.includes('概念') || lowerInput.includes('设定')) {
+        elementType = 'CONCEPT'
+      } else if (lowerInput.includes('主题')) {
+        elementType = 'THEME'
+      }
+
+      return {
+        actions: [{ type: 'get_world_elements', params: { elementType } }],
+        response: `正在获取${elementType}相关的世界观元素...`,
+        suggestions: ['完善世界观设定', '加强元素关联', '深化独特性']
+      }
+    }
+
+    if (lowerInput.includes('创建节点') || lowerInput.includes('添加节点') || (lowerInput.includes('创建') && lowerInput.includes('知识'))) {
+      return {
+        actions: [],
+        response: '我可以帮您在知识图谱中创建新节点。请告诉我节点的名称、类型（角色/地点/事件/概念等）和描述。',
+        suggestions: ['创建角色节点', '创建地点节点', '创建事件节点', '创建概念节点']
+      }
+    }
+
+    if (lowerInput.includes('创建关系') || lowerInput.includes('建立关系') || lowerInput.includes('连接')) {
+      return {
+        actions: [],
+        response: '我可以帮您在知识图谱中创建关系。请告诉我要连接的两个节点和关系类型。',
+        suggestions: ['建立角色关系', '创建地点关联', '设置事件连接']
       }
     }
     
@@ -2176,6 +2321,436 @@ ${this.context.currentCharacters.map(c => `${c.name}: ${c.personality}`).join('\
       const response = await aiService.generateResponse({
         message: prompt,
         type: 'general'
+      })
+
+      return {
+        success: true,
+        themeExpression: response.text,
+        approach: approach,
+        suggestions: ['优化表达方式', '增加层次感', '加强情感连接']
+      }
+    } catch (error) {
+      throw new Error(`主题深化失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  // ======================
+  // 知识图谱相关方法
+  // ======================
+
+  /**
+   * 在知识图谱中搜索相关信息
+   */
+  private async searchKnowledgeGraph(params: any): Promise<any> {
+    if (!neo4jService) {
+      return {
+        success: false,
+        error: '知识图谱服务未连接',
+        suggestion: '请先配置并连接Neo4j数据库'
+      }
+    }
+
+    try {
+      const query = params.query
+      const searchType = params.searchType || 'general' // 'character', 'location', 'event', 'general'
+      const projectId = this.context.currentProject?.id
+
+      if (!projectId) {
+        throw new Error('未选择项目')
+      }
+
+      // 根据搜索类型构建不同的查询
+      let searchResults: GraphData
+      
+      if (searchType === 'character') {
+        searchResults = await neo4jService.searchNodes(projectId, 'CHARACTER', query)
+      } else if (searchType === 'location') {
+        searchResults = await neo4jService.searchNodes(projectId, 'LOCATION', query)
+      } else if (searchType === 'event') {
+        searchResults = await neo4jService.searchNodes(projectId, 'EVENT', query)
+      } else {
+        // 全文搜索
+        searchResults = await neo4jService.searchNodes(projectId, undefined, query)
+      }
+
+      // 分析搜索结果并生成AI建议
+      const analysisPrompt = `
+基于知识图谱搜索结果，为小说《${this.context.currentProject?.title}》提供创作建议。
+
+搜索查询：${query}
+找到的节点：${searchResults.nodes.length}个
+找到的关系：${searchResults.relationships.length}个
+
+节点详情：
+${searchResults.nodes.map(node => `- ${node.name} (${node.type}): ${node.description}`).join('\n')}
+
+关系详情：
+${searchResults.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\n')}
+
+请分析这些信息如何在当前创作中使用，并提供具体建议。
+`
+
+      const aiResponse = await aiService.generateResponse({
+        message: analysisPrompt,
+        type: 'general'
+      })
+
+      return {
+        success: true,
+        searchResults: searchResults,
+        analysis: aiResponse.text,
+        suggestions: [
+          '将相关元素融入当前章节',
+          '建立新的关系连接',
+          '深入探索未开发的角色关系'
+        ]
+      }
+    } catch (error) {
+      throw new Error(`知识图谱搜索失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  /**
+   * 获取角色关系网络
+   */
+  private async getCharacterRelationships(params: any): Promise<any> {
+    if (!neo4jService) {
+      return {
+        success: false,
+        error: '知识图谱服务未连接'
+      }
+    }
+
+    try {
+      const characterName = params.characterName
+      const projectId = this.context.currentProject?.id
+
+      if (!projectId) {
+        throw new Error('未选择项目')
+      }
+
+      // 查找角色节点
+      const characterNodes = await neo4jService.searchNodes(projectId, 'CHARACTER', characterName)
+      
+      if (characterNodes.nodes.length === 0) {
+        return {
+          success: false,
+          error: `未找到角色：${characterName}`,
+          suggestion: '请检查角色名称或先在知识图谱中创建该角色'
+        }
+      }
+
+      const characterNode = characterNodes.nodes[0]
+
+      // 获取该角色的所有关系
+      const relationships = await neo4jService.getNodeRelationships(characterNode.id)
+
+      // 分析关系网络
+      const analysisPrompt = `
+分析角色"${characterName}"的关系网络，为《${this.context.currentProject?.title}》的创作提供建议。
+
+角色信息：
+- 名称：${characterNode.name}
+- 描述：${characterNode.description}
+- 重要程度：${characterNode.importance}
+
+关系网络：
+${relationships.relationships.map(rel => {
+  const otherNode = relationships.nodes.find(n => n.id === rel.endNodeId || n.id === rel.startNodeId)
+  return `- ${rel.type}：与"${otherNode?.name}"的关系（强度：${rel.strength}%）`
+}).join('\n')}
+
+请分析：
+1. 关系网络的复杂度和合理性
+2. 可能存在的情节发展机会
+3. 关系冲突和张力点
+4. 角色发展的可能方向
+`
+
+      const aiResponse = await aiService.generateResponse({
+        message: analysisPrompt,
+        type: 'general'
+      })
+
+      return {
+        success: true,
+        character: characterNode,
+        relationships: relationships,
+        analysis: aiResponse.text,
+        suggestions: [
+          '探索未开发的关系动态',
+          '创造关系冲突情节',
+          '深化现有关系的情感层次'
+        ]
+      }
+    } catch (error) {
+      throw new Error(`获取角色关系失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  /**
+   * 分析情节连接
+   */
+  private async analyzePlotConnections(): Promise<any> {
+    if (!neo4jService) {
+      return {
+        success: false,
+        error: '知识图谱服务未连接'
+      }
+    }
+
+    try {
+      const projectId = this.context.currentProject?.id
+
+      if (!projectId) {
+        throw new Error('未选择项目')
+      }
+
+      // 获取所有事件节点
+      const events = await neo4jService.searchNodes(projectId, 'EVENT')
+      const plotPoints = await neo4jService.searchNodes(projectId, 'PLOT_POINT')
+      
+      // 合并事件和情节点
+      const allPlotElements = [...events.nodes, ...plotPoints.nodes]
+      const allRelationships = [...events.relationships, ...plotPoints.relationships]
+
+      // 分析情节连接
+      const analysisPrompt = `
+分析小说《${this.context.currentProject?.title}》的情节连接结构。
+
+情节元素（${allPlotElements.length}个）：
+${allPlotElements.map(element => `- ${element.name} (${element.type}): ${element.description}`).join('\n')}
+
+情节关系（${allRelationships.length}个）：
+${allRelationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\n')}
+
+当前章节：${this.context.currentChapter?.title}
+
+请分析：
+1. 情节连接的完整性和逻辑性
+2. 可能存在的情节漏洞
+3. 伏笔和呼应的设置
+4. 情节发展的节奏和张力
+5. 建议的情节优化方案
+`
+
+      const aiResponse = await aiService.generateResponse({
+        message: analysisPrompt,
+        type: 'general'
+      })
+
+      return {
+        success: true,
+        plotElements: allPlotElements,
+        plotRelationships: allRelationships,
+        analysis: aiResponse.text,
+        suggestions: [
+          '填补情节连接空隙',
+          '加强伏笔设置',
+          '优化情节节奏',
+          '增强情节冲突'
+        ]
+      }
+    } catch (error) {
+      throw new Error(`情节连接分析失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  /**
+   * 获取世界观元素
+   */
+  private async getWorldElements(params: any): Promise<any> {
+    if (!neo4jService) {
+      return {
+        success: false,
+        error: '知识图谱服务未连接'
+      }
+    }
+
+    try {
+      const elementType = params.elementType // 'LOCATION', 'ORGANIZATION', 'CONCEPT', 'THEME'
+      const projectId = this.context.currentProject?.id
+
+      if (!projectId) {
+        throw new Error('未选择项目')
+      }
+
+      // 获取指定类型的世界观元素
+      const elements = await neo4jService.searchNodes(projectId, elementType as any)
+
+      // 生成世界观分析
+      const analysisPrompt = `
+分析小说《${this.context.currentProject?.title}》的${elementType}元素。
+
+${elementType}元素（${elements.nodes.length}个）：
+${elements.nodes.map(element => `- ${element.name}: ${element.description}`).join('\n')}
+
+相关关系：
+${elements.relationships.map(rel => `- ${rel.type}: ${rel.description}`).join('\n')}
+
+请分析：
+1. 世界观的完整性和一致性
+2. 各元素之间的关联性
+3. 可能的世界观扩展方向
+4. 在当前创作中的应用建议
+`
+
+      const aiResponse = await aiService.generateResponse({
+        message: analysisPrompt,
+        type: 'general'
+      })
+
+      return {
+        success: true,
+        elementType: elementType,
+        elements: elements.nodes,
+        relationships: elements.relationships,
+        analysis: aiResponse.text,
+        suggestions: [
+          '完善世界观设定',
+          '加强元素间的关联',
+          '深化世界观的独特性'
+        ]
+      }
+    } catch (error) {
+      throw new Error(`获取世界观元素失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  /**
+   * 在知识图谱中创建新节点
+   */
+  private async createKnowledgeNode(params: any): Promise<any> {
+    if (!neo4jService) {
+      return {
+        success: false,
+        error: '知识图谱服务未连接'
+      }
+    }
+
+    try {
+      const projectId = this.context.currentProject?.id
+
+      if (!projectId) {
+        throw new Error('未选择项目')
+      }
+
+      const nodeData = {
+        type: params.type as GraphNode['type'],
+        name: params.name,
+        description: params.description || '',
+        properties: params.properties || {},
+        importance: params.importance || 'MEDIUM' as GraphNode['importance'],
+        status: 'ACTIVE' as GraphNode['status'],
+        tags: params.tags || [],
+        chapterIds: params.chapterIds || [],
+        projectId: projectId
+      }
+
+      const newNode = await neo4jService.createNode(nodeData)
+
+      // 如果当前有章节，关联到当前章节
+      if (this.context.currentChapter) {
+        await neo4jService.updateNode(newNode.id, {
+          ...newNode,
+          chapterIds: [...(newNode.chapterIds || []), this.context.currentChapter.id]
+        })
+      }
+
+      return {
+        success: true,
+        node: newNode,
+        message: `成功创建${params.type}节点：${params.name}`,
+        suggestions: [
+          '为该节点添加关系连接',
+          '完善节点描述信息',
+          '设置节点重要程度'
+        ]
+      }
+    } catch (error) {
+      throw new Error(`创建知识节点失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  /**
+   * 在知识图谱中创建关系
+   */
+  private async createKnowledgeRelationship(params: any): Promise<any> {
+    if (!neo4jService) {
+      return {
+        success: false,
+        error: '知识图谱服务未连接'
+      }
+    }
+
+    try {
+      const projectId = this.context.currentProject?.id
+
+      if (!projectId) {
+        throw new Error('未选择项目')
+      }
+
+      // 查找起始和结束节点
+      const startNodes = await neo4jService.searchNodes(projectId, undefined, params.startNode)
+      const endNodes = await neo4jService.searchNodes(projectId, undefined, params.endNode)
+
+      if (startNodes.nodes.length === 0) {
+        throw new Error(`未找到起始节点：${params.startNode}`)
+      }
+
+      if (endNodes.nodes.length === 0) {
+        throw new Error(`未找到结束节点：${params.endNode}`)
+      }
+
+      const relationshipData = {
+        type: params.relationshipType as GraphRelationship['type'],
+        startNodeId: startNodes.nodes[0].id,
+        endNodeId: endNodes.nodes[0].id,
+        strength: params.strength || 50,
+        description: params.description || '',
+        properties: params.properties || {},
+        bidirectional: params.bidirectional || false,
+        startChapter: this.context.currentChapter?.id || '',
+        endChapter: '',
+        status: 'CURRENT' as GraphRelationship['status']
+      }
+
+      const newRelationship = await neo4jService.createRelationship(relationshipData)
+
+      return {
+        success: true,
+        relationship: newRelationship,
+        message: `成功创建关系：${params.startNode} ${params.relationshipType} ${params.endNode}`,
+        suggestions: [
+          '调整关系强度',
+          '添加关系描述',
+          '设置关系的时间范围'
+        ]
+      }
+    } catch (error) {
+      throw new Error(`创建关系失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+
+  /**
+   * 重新连接Neo4j服务
+   */
+  async reconnectKnowledgeGraph(): Promise<boolean> {
+    try {
+      await initializeNeo4jService()
+      return neo4jService !== null
+    } catch (error) {
+      console.error('重新连接知识图谱失败:', error)
+      return false
+    }
+  }
+
+  /**
+   * 检查知识图谱连接状态
+   */
+  isKnowledgeGraphConnected(): boolean {
+    return neo4jService !== null
+  }
       })
       
       return {
