@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import '../types/express'; // 确保类型定义被加载
 import { databaseConfig } from '../config/database';
 import { NovelCreationService } from '../services/novelCreationService';
 import { logger } from '../utils/logger';

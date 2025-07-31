@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { WritingStatsController } from '../controllers/writingStatsController';
+import { WritingStatsController } from '../controllers/writingStatsController.new';
 
 const router = Router();
 
@@ -7,12 +7,12 @@ const router = Router();
 const writingStatsController = new WritingStatsController();
 
 // 写作统计相关路由
-router.get('/projects/:projectId/stats/overview', writingStatsController.getWritingOverview);
-router.get('/projects/:projectId/stats', writingStatsController.getProjectStats);
-router.get('/projects/:projectId/stats/sessions', writingStatsController.getWritingSessions);
-router.post('/projects/:projectId/sessions/start', writingStatsController.startWritingSession);
-router.post('/sessions/:sessionId/end', writingStatsController.endWritingSession);
-router.get('/projects/:projectId/stats/heatmap', writingStatsController.getWritingHeatmap);
-router.get('/projects/:projectId/stats/trends', writingStatsController.getWritingTrends);
+router.get('/user', writingStatsController.getUserStats);
+router.get('/projects/:projectId', writingStatsController.getProjectStats);
+router.post('/goals', writingStatsController.updateWritingGoal);
+router.post('/sessions', writingStatsController.recordWritingSession);
+router.get('/habits', writingStatsController.getWritingHabits);
+router.get('/achievements', writingStatsController.getAchievements);
+router.get('/export', writingStatsController.exportWritingReport);
 
 export default router;

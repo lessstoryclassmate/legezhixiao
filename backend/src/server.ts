@@ -9,36 +9,132 @@ import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
-// 导入配置和工具
-import { logger, stream } from './utils/logger';
-import databaseConfig from './config/database';
-import { errorHandler } from './middleware/errorHandler';
-import { notFound } from './middleware/notFound';
-
-// 导入路由
-import authRoutes from './routes/auth';
-import userRoutes from './routes/user';
-import projectRoutes from './routes/project';
-import chapterRoutes from './routes/chapter';
-import aiRoutes from './routes/ai';
-import writingRoutes from './routes/writing';
-import writingStatsRoutes from './routes/writingStats';
+// 导入错误处理工具
+import { logError, safeRequire, startupStep } from './utils/errorLogger';
 
 // 加载环境变量
 dotenv.config();
 
-const app = express();
-const server = createServer(app);
-const io = new SocketIOServer(server, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
+console.log('\n🚀 乐格智小后端服务器启动中...\n');
+
+// 导入配置和工具
+let logger: any, stream: any;
+let databaseConfig: any;
+let errorHandler: any, notFound: any;
+
+try {
+  const path = require('path');
+  const loggerPath = path.join(__dirname, 'utils', 'logger');
+  console.log(`🔍 正在导入模块: ${loggerPath}`);
+  const loggerModule = require(loggerPath);
+  logger = loggerModule.logger;
+  stream = loggerModule.stream;
+  console.log('✅ logger 导入成功');
+} catch (error) {
+  console.error('❌ 无法启动：日志模块导入失败');
+  console.error('错误详情:', error);
+  process.exit(1);
+}
+
+try {
+  const path = require('path');
+  const dbConfigPath = path.join(__dirname, 'config', 'database');
+  console.log(`🔍 正在导入模块: ${dbConfigPath}`);
+  databaseConfig = require(dbConfigPath).default;
+  console.log('✅ database config 导入成功');
+} catch (error) {
+  logError('数据库配置导入', error);
+  process.exit(1);
+}
+
+try {
+  const path = require('path');
+  const errorHandlerPath = path.join(__dirname, 'middleware', 'errorHandler');
+  const notFoundPath = path.join(__dirname, 'middleware', 'notFound');
+  console.log(`🔍 正在导入模块: ${errorHandlerPath}`);
+  console.log(`🔍 正在导入模块: ${notFoundPath}`);
+  errorHandler = require(errorHandlerPath).errorHandler;
+  notFound = require(notFoundPath).notFound;
+  console.log('✅ middleware 导入成功');
+} catch (error) {
+  logError('中间件导入', error);
+  process.exit(1);
+}
+
+// 导入路由
+let authRoutes: any, userRoutes: any, projectRoutes: any, chapterRoutes: any;
+let aiRoutes: any, writingRoutes: any, writingStatsRoutes: any, logRoutes: any, uploadRoutes: any;
+
+try {
+  console.log('导入路由模块...');
+  const path = require('path');
+  
+  authRoutes = require(path.join(__dirname, 'routes', 'auth')).default;
+  console.log('✅ auth routes 导入成功');
+  
+  userRoutes = require(path.join(__dirname, 'routes', 'user')).default;
+  console.log('✅ user routes 导入成功');
+  
+  projectRoutes = require(path.join(__dirname, 'routes', 'project')).default;
+  console.log('✅ project routes 导入成功');
+  
+  chapterRoutes = require(path.join(__dirname, 'routes', 'chapter.new')).default;
+  console.log('✅ chapter routes 导入成功');
+  
+  aiRoutes = require(path.join(__dirname, 'routes', 'ai')).default;
+  console.log('✅ ai routes 导入成功');
+  
+  writingRoutes = require(path.join(__dirname, 'routes', 'writing')).default;
+  console.log('✅ writing routes 导入成功');
+  
+  writingStatsRoutes = require(path.join(__dirname, 'routes', 'writingStats')).default;
+  console.log('✅ writingStats routes 导入成功');
+  
+  logRoutes = require(path.join(__dirname, 'routes', 'logs')).default;
+  console.log('✅ logs routes 导入成功');
+  
+  uploadRoutes = require(path.join(__dirname, 'routes', 'upload')).default;
+  console.log('✅ upload routes 导入成功');
+  
+  console.log('✅ 所有路由模块导入成功');
+} catch (error) {
+  logError('路由导入', error);
+  process.exit(1);
+}
+
+// 添加调试日志
+console.log('=== 服务器启动调试信息 ===');
+console.log('环境变量已加载');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+
+let app: express.Application;
+let server: any;
+let io: any;
+
+try {
+  console.log('创建 Express 应用...');
+  app = express();
+  
+  console.log('创建 HTTP 服务器...');
+  server = createServer(app);
+  
+  console.log('创建 Socket.IO 服务器...');
+  io = new SocketIOServer(server, {
+    cors: {
+      origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+      methods: ["GET", "POST"],
+      credentials: true
+    }
+  });
+  console.log('Socket.IO 服务器创建成功');
+} catch (error) {
+  console.error('初始化服务器组件时出错:', error);
+  process.exit(1);
+}
 
 // 基础配置
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // 安全中间件
@@ -90,6 +186,16 @@ app.use(compression());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/assets', express.static(path.join(__dirname, '../assets')));
 
+// 根路径重定向到API文档
+app.get('/', (req, res) => {
+  res.redirect('/api');
+});
+
+// favicon处理
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).send();
+});
+
 // 健康检查端点
 app.get('/health', (req, res) => {
   const dbStatus = databaseConfig.getConnectionStatus();
@@ -111,6 +217,8 @@ app.use('/api/chapters', chapterRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/writing', writingRoutes);
 app.use('/api/stats', writingStatsRoutes);
+app.use('/api/logs', logRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // API 根路径
 app.get('/api', (req, res) => {
@@ -126,13 +234,15 @@ app.get('/api', (req, res) => {
       ai: '/api/ai',
       writing: '/api/writing',
       stats: '/api/stats',
+      logs: '/api/logs',
+      upload: '/api/upload',
       health: '/health'
     }
   });
 });
 
 // Socket.IO 连接处理
-io.on('connection', (socket) => {
+io.on('connection', (socket: any) => {
   logger.info(`用户连接: ${socket.id}`);
 
   // 用户加入项目房间
@@ -148,7 +258,7 @@ io.on('connection', (socket) => {
   });
 
   // 实时编辑同步
-  socket.on('text-change', (data) => {
+  socket.on('text-change', (data: any) => {
     socket.to(`project-${data.projectId}`).emit('text-change', {
       ...data,
       socketId: socket.id
@@ -156,7 +266,7 @@ io.on('connection', (socket) => {
   });
 
   // 光标位置同步
-  socket.on('cursor-change', (data) => {
+  socket.on('cursor-change', (data: any) => {
     socket.to(`project-${data.projectId}`).emit('cursor-change', {
       ...data,
       socketId: socket.id
@@ -179,29 +289,42 @@ app.use(errorHandler);
 async function startServer() {
   try {
     // 连接数据库
-    await databaseConfig.connectSQLite();
+    await startupStep('连接数据库', async () => {
+      await databaseConfig.connectSQLite();
+    });
 
     // 创建上传目录
-    const uploadsDir = path.join(__dirname, '../uploads');
-    const avatarsDir = path.join(uploadsDir, 'avatars');
-    const assetsDir = path.join(__dirname, '../assets');
+    await startupStep('创建上传目录', async () => {
+      const uploadsDir = path.join(__dirname, '../uploads');
+      const avatarsDir = path.join(uploadsDir, 'avatars');
+      const assetsDir = path.join(__dirname, '../assets');
 
-    // 确保目录存在
-    const fs = require('fs').promises;
-    await fs.mkdir(uploadsDir, { recursive: true });
-    await fs.mkdir(avatarsDir, { recursive: true });
-    await fs.mkdir(assetsDir, { recursive: true });
+      // 确保目录存在
+      const fs = require('fs').promises;
+      await fs.mkdir(uploadsDir, { recursive: true });
+      await fs.mkdir(avatarsDir, { recursive: true });
+      await fs.mkdir(assetsDir, { recursive: true });
+    });
 
     // 启动服务器
-    server.listen(PORT, () => {
-      logger.info(`🚀 服务器运行在 http://localhost:${PORT}`);
-      logger.info(`📖 API 文档: http://localhost:${PORT}/api`);
-      logger.info(`🔧 环境: ${NODE_ENV}`);
-      logger.info(`💾 数据库状态:`, databaseConfig.getConnectionStatus());
+    await startupStep('启动HTTP服务器', () => {
+      return new Promise<void>((resolve, reject) => {
+        server.listen(PORT, (err?: Error) => {
+          if (err) {
+            reject(err);
+          } else {
+            logger.info(`🚀 服务器运行在 http://localhost:${PORT}`);
+            logger.info(`📖 API 文档: http://localhost:${PORT}/api`);
+            logger.info(`🔧 环境: ${NODE_ENV}`);
+            logger.info(`💾 数据库状态:`, databaseConfig.getConnectionStatus());
+            resolve();
+          }
+        });
+      });
     });
 
   } catch (error) {
-    logger.error('服务器启动失败:', error);
+    logError('服务器启动', error);
     process.exit(1);
   }
 }

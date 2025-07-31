@@ -1,0 +1,26 @@
+{
+    "recommendations": [
+        "github.copilot",
+        "github.copilot-chat",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "vue.volar",
+        "github.codespaces",
+        "christian-kohler.path-intellisense",
+        "ms-vscode.live-server",
+        "grapecity.gc-excelviewer",
+        "ms-vscode.vscode-json",
+        "formulahendry.auto-rename-tag",
+        "usernamehw.errorlens",
+        "ms-vscode.vscode-react-intellisense"
+    ],
+    "unwantedRecommendations": [
+        "csholmq.excel-to-markdown-table",
+        "ms-toolsai.jupyter-keymap", 
+        "ms-vscode.vscode-typescript-next",
+        "cweijan.vscode-excel",
+        "ms-vscode.vscode-eslint"
+    ]
+}

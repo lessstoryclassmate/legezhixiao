@@ -53,10 +53,39 @@ class DatabaseConfig {
       this.models = initializeModels(this.sequelize);
       logger.info('Database models initialized');
 
-      // 同步数据库模型
+      // 同步数据库模型 - 改进的安全策略
       if (process.env.NODE_ENV === 'development') {
-        await this.sequelize.sync({ alter: true });
-        logger.info('Database models synchronized');
+        try {
+          // 第一步：测试连接
+          await this.sequelize.authenticate();
+          logger.info('数据库连接测试成功');
+
+          // 第二步：安全同步 - 只创建不存在的表，不修改现有表
+          await this.sequelize.sync({ 
+            force: false, 
+            alter: false,
+            logging: (sql) => logger.debug('SQLite:', sql)
+          });
+          logger.info('Database models synchronized successfully (safe mode)');
+          
+        } catch (syncError) {
+          logger.warn('数据库同步遇到问题，尝试恢复策略:', syncError);
+          
+          try {
+            // 备用策略：跳过可能有问题的同步操作
+            logger.info('跳过数据库同步，使用现有表结构');
+            // 简单验证表是否存在
+            const tables = await this.sequelize.getQueryInterface().showAllTables();
+            logger.info(`发现 ${tables.length} 个数据库表:`, tables);
+            
+          } catch (fallbackError) {
+            logger.error('数据库恢复策略也失败了:', fallbackError);
+            logger.info('继续启动服务器，使用模拟数据模式');
+          }
+        }
+      } else {
+        // 生产环境：不进行自动同步
+        logger.info('生产环境：跳过数据库自动同步');
       }
 
     } catch (error) {
