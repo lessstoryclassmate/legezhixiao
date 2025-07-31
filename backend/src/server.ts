@@ -38,12 +38,12 @@ try {
 
 try {
   const path = require('path');
-  const dbConfigPath = path.join(__dirname, 'config', 'arangodb');
+  const dbConfigPath = path.join(__dirname, 'config', 'databaseAdapter');
   console.log(`🔍 正在导入模块: ${dbConfigPath}`);
   databaseConfig = require(dbConfigPath).default;
-  console.log('✅ ArangoDB config 导入成功');
+  console.log('✅ 数据库适配器 导入成功');
 } catch (error) {
-  logError('ArangoDB配置导入', error);
+  logError('数据库适配器导入', error);
   process.exit(1);
 }
 
@@ -298,9 +298,9 @@ app.use(errorHandler);
 async function startServer() {
   try {
     // 连接数据库
-    await startupStep('连接ArangoDB数据库', async () => {
-      await databaseConfig.connectArangoDB();
-      logger.info('ArangoDB多模态数据库连接成功');
+    await startupStep('连接数据库', async () => {
+      await databaseConfig.initialize();
+      logger.info('数据库连接成功 (ArangoDB + 兼容层)');
     });
 
     // 创建上传目录
