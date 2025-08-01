@@ -65,7 +65,7 @@ export class DataService {
     try {
       const arangoService = this.getArangoService();
       const results = await arangoService.queryDocuments(collection, filters);
-      return results.map(result => this.formatResult(result));
+      return results.map((result: any) => this.formatResult(result));
     } catch (error) {
       logger.error(`查找文档列表失败: ${collection}`, error);
       return [];
@@ -109,7 +109,7 @@ export class DataService {
     try {
       const arangoService = this.getArangoService();
       const results = await arangoService.query(aql, bindVars);
-      return results.map(result => this.formatResult(result));
+      return results.map((result: any) => this.formatResult(result));
     } catch (error) {
       logger.error('AQL查询失败', { aql, bindVars, error });
       return [];

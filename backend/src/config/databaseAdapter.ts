@@ -1,19 +1,17 @@
 /**
  * 数据库适配器
- * 提供Sequelize兼容接口，底层使用ArangoDB
- * 这是渐进式迁移的过渡方案
+ * 使用ArangoDB作为主要数据库
  */
 
-import { Sequelize } from 'sequelize';
 import { logger } from '../utils/logger';
 import { ArangoDBService } from '../services/arangoDBService';
-import { ModelFactory } from '../models/modelProxy';
+import { initializeModels } from '../models/index_simple';
 
 class DatabaseAdapter {
   private static instance: DatabaseAdapter;
-  private sequelize: Sequelize | null = null;
   private arangoDBService: ArangoDBService | null = null;
   private isConnected: boolean = false;
+  private _models: any = null;
 
   private constructor() {}
 
@@ -26,7 +24,7 @@ class DatabaseAdapter {
 
   /**
    * 初始化数据库连接
-   * 优先使用ArangoDB，同时保持Sequelize兼容性
+   * 使用ArangoDB作为唯一数据库
    */
   public async initialize(): Promise<void> {
     try {
@@ -38,19 +36,7 @@ class DatabaseAdapter {
       this.isConnected = true;
       logger.info('✅ ArangoDB数据库连接成功');
 
-      // 创建一个内存中的SQLite用于Sequelize兼容性
-      // 这样现有的模型代码可以继续工作，但实际数据存储在ArangoDB中
-      this.sequelize = new Sequelize('sqlite::memory:', {
-        dialect: 'sqlite',
-        logging: false, // 禁用日志，因为这只是兼容性层
-        define: {
-          timestamps: true,
-          underscored: false,
-        }
-      });
-
-      await this.sequelize.authenticate();
-      logger.info('✅ Sequelize兼容层初始化成功');
+      logger.info('✅ 数据库适配器初始化成功');
 
     } catch (error) {
       logger.error('❌ 数据库初始化失败:', error);
@@ -68,15 +54,19 @@ class DatabaseAdapter {
   /**
    * 获取Sequelize实例（兼容性）
    */
-  public getSequelize(): Sequelize | null {
-    return this.sequelize;
+  public getSequelize(): any {
+    // 返回null，不再使用Sequelize
+    return null;
   }
 
   /**
-   * 获取模型代理 - 新的推荐方式
+   * 获取所有模型 - 向后兼容
    */
-  public getModel(name: string) {
-    return ModelFactory.getModel(name);
+  public get models() {
+    if (!this._models) {
+      this._models = initializeModels(null as any);
+    }
+    return this._models;
   }
 
   /**
@@ -92,7 +82,7 @@ class DatabaseAdapter {
   public getConnectionStatus() {
     return {
       arangodb: this.arangoDBService ? 'connected' : 'disconnected',
-      sequelize_compat: this.sequelize ? 'connected' : 'disconnected'
+      status: this.isConnected ? 'connected' : 'disconnected'
     };
   }
 
@@ -104,11 +94,6 @@ class DatabaseAdapter {
       if (this.arangoDBService) {
         await this.arangoDBService.disconnect();
         this.arangoDBService = null;
-      }
-
-      if (this.sequelize) {
-        await this.sequelize.close();
-        this.sequelize = null;
       }
 
       this.isConnected = false;

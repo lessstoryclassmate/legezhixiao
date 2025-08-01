@@ -3,7 +3,7 @@
  * 现在使用ArangoDB作为主要数据库，通过适配器提供兼容性
  */
 
-import { databaseAdapter } from './databaseAdapter';
+import databaseAdapter from './databaseAdapter';
 
 // 导出适配器实例以保持向后兼容性
 export const databaseConfig = databaseAdapter;

@@ -3,7 +3,6 @@ import { Request, Response } from 'express';
 import { databaseConfig } from '../config/database';
 import { NovelCreationService } from '../services/novelCreationService';
 import { logger } from '../utils/logger';
-import { Op } from 'sequelize';
 
 export class WritingStatsController {
   private novelService: NovelCreationService;

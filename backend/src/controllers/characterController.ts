@@ -214,7 +214,7 @@ export class CharacterController {
       });
 
       // 构建关系网络数据
-      const nodes = characters.map(char => ({
+      const nodes = characters.map((char: any) => ({
         id: char.id,
         name: char.name,
         importance: char.importance,
@@ -222,7 +222,7 @@ export class CharacterController {
       }));
 
       const edges: any[] = [];
-      characters.forEach(char => {
+      characters.forEach((char: any) => {
         if (char.relationships) {
           char.relationships.forEach((rel: any) => {
             edges.push({
@@ -326,8 +326,8 @@ export class CharacterController {
       });
 
       // 统计角色出场次数
-      const appearanceStats = characters.map(char => {
-        const appearances = chapters.filter(chapter => 
+      const appearanceStats = characters.map((char: any) => {
+        const appearances = chapters.filter((chapter: any) => 
           chapter.characters && chapter.characters.includes(char.id)
         );
 
@@ -336,17 +336,17 @@ export class CharacterController {
           characterName: char.name,
           importance: char.importance,
           totalAppearances: appearances.length,
-          chapters: appearances.map(ch => ({
+          chapters: appearances.map((ch: any) => ({
             id: ch.id,
             title: ch.title,
             order: ch.order
-          })).sort((a, b) => a.order - b.order)
+          })).sort((a: any, b: any) => a.order - b.order)
         };
       });
 
       res.json({
         success: true,
-        data: appearanceStats.sort((a, b) => b.totalAppearances - a.totalAppearances)
+        data: appearanceStats.sort((a: any, b: any) => b.totalAppearances - a.totalAppearances)
       });
 
     } catch (error) {

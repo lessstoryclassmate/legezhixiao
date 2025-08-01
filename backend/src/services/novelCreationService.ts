@@ -5,12 +5,20 @@ export class NovelCreationService {
   private models: any;
 
   constructor() {
-    this.models = databaseConfig.models;
+    // 延迟初始化models
+    this.models = null;
+  }
+
+  private getModels() {
+    if (!this.models) {
+      this.models = databaseConfig.models;
+    }
+    return this.models;
   }
 
   // 项目相关服务
   async createProject(userId: string, projectData: any) {
-    const { Project } = this.models;
+    const { Project } = this.getModels();
     
     const project = await Project.create({
       userId,

@@ -107,21 +107,83 @@ export class ModelProxy {
   async destroy(options: any): Promise<number> {
     try {
       const { where = {} } = options;
-      
-      // 先查找要删除的记录
       const records = await dataService.findAll(this.collection, where);
-      let deletedCount = 0;
-
+      
       for (const record of records) {
-        const success = await dataService.delete(this.collection, record._key);
-        if (success) deletedCount++;
+        await dataService.delete(this.collection, record._key);
       }
-
-      return deletedCount;
+      
+      return records.length;
     } catch (error) {
       logger.error(`ModelProxy.destroy失败 [${this.collection}]:`, error);
       return 0;
     }
+  }
+
+  /**
+   * 递增字段值
+   */
+  async increment(field: string, options: any): Promise<void> {
+    try {
+      const { where = {} } = options;
+      const records = await dataService.findAll(this.collection, where);
+      
+      for (const record of records) {
+        const currentValue = record[field] || 0;
+        await dataService.update(this.collection, record._key, {
+          [field]: currentValue + 1,
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      logger.error(`ModelProxy.increment失败 [${this.collection}]:`, error);
+    }
+  }
+
+  /**
+   * 递减字段值
+   */
+  async decrement(field: string, options: any): Promise<void> {
+    try {
+      const { where = {} } = options;
+      const records = await dataService.findAll(this.collection, where);
+      
+      for (const record of records) {
+        const currentValue = record[field] || 0;
+        await dataService.update(this.collection, record._key, {
+          [field]: Math.max(0, currentValue - 1),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      logger.error(`ModelProxy.decrement失败 [${this.collection}]:`, error);
+    }
+  }
+
+  /**
+   * 获取字段最大值
+   */
+  async max(field: string, options: any = {}): Promise<number> {
+    try {
+      const { where = {} } = options;
+      const records = await dataService.findAll(this.collection, where);
+      
+      if (records.length === 0) return 0;
+      
+      const values = records.map(r => r[field] || 0).filter(v => typeof v === 'number');
+      return values.length > 0 ? Math.max(...values) : 0;
+    } catch (error) {
+      logger.error(`ModelProxy.max失败 [${this.collection}]:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * 作用域查询（兼容性方法）
+   */
+  scope(scopeName: string) {
+    // 返回自身，保持链式调用
+    return this;
   }
 
   /**
@@ -135,6 +197,21 @@ export class ModelProxy {
     } catch (error) {
       logger.error(`ModelProxy.count失败 [${this.collection}]:`, error);
       return 0;
+    }
+  }
+
+  /**
+   * 按邮箱或用户名查找用户 (User模型特有方法)
+   */
+  async findByEmailOrUsername(emailOrUsername: string): Promise<any> {
+    try {
+      const records = await dataService.findAll(this.collection, {});
+      return records.find(record => 
+        record.email === emailOrUsername || record.username === emailOrUsername
+      ) || null;
+    } catch (error) {
+      logger.error(`ModelProxy.findByEmailOrUsername失败 [${this.collection}]:`, error);
+      return null;
     }
   }
 }

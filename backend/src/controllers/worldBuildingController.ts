@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { Op } from 'sequelize';
 import { databaseConfig } from '../config/database';
 import { logger } from '../utils/logger';
 
@@ -345,20 +344,21 @@ export class WorldBuildingController {
 
       const whereClause: any = { projectId };
 
-      if (keyword) {
-        whereClause.name = {
-          [Op.like]: `%${keyword}%`
-        };
-      }
-
       if (category) {
         whereClause.type = category;
       }
 
-      const worldBuildings = await WorldBuilding.findAll({
+      // 获取所有记录，然后在内存中过滤
+      const allWorldBuildings = await WorldBuilding.findAll({
         where: whereClause,
         order: [['createdAt', 'DESC']]
       });
+
+      // 如果有关键词，进行名称匹配过滤
+      const keywordStr = Array.isArray(keyword) ? keyword[0] : keyword;
+      const worldBuildings = keywordStr && typeof keywordStr === 'string'
+        ? allWorldBuildings.filter(wb => wb.name.toLowerCase().includes(keywordStr.toLowerCase()))
+        : allWorldBuildings;
 
       res.json({
         success: true,

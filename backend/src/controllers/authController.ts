@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { Op } from 'sequelize';
 import { 
   LoginRequest, 
   RegisterRequest, 
@@ -12,7 +11,7 @@ import {
   UserRole,
   SubscriptionTier
 } from '../types';
-import { User } from '../models/User';
+import { User } from '../models/modelProxy';
 import databaseConfig from '../config/database';
 import { logger } from '../utils/logger';
 
@@ -36,7 +35,7 @@ export class AuthController {
       }
 
       // 获取模型
-      const models = databaseConfig.getModels();
+      const models = databaseConfig.models;
       if (!models) {
         throw new AppError('数据库连接错误', 500);
       }
@@ -115,7 +114,7 @@ export class AuthController {
       }
 
       // 获取模型
-      const models = databaseConfig.getModels();
+      const models = databaseConfig.models;
       if (!models) {
         throw new AppError('数据库连接错误', 500);
       }
@@ -205,7 +204,7 @@ export class AuthController {
       const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET!) as JWTPayload;
 
       // 获取模型
-      const models = databaseConfig.getModels();
+      const models = databaseConfig.models;
       if (!models) {
         throw new AppError('数据库连接错误', 500);
       }
@@ -245,7 +244,7 @@ export class AuthController {
       }
 
       // 获取模型
-      const models = databaseConfig.getModels();
+      const models = databaseConfig.models;
       if (!models) {
         throw new AppError('数据库连接错误', 500);
       }
@@ -293,19 +292,18 @@ export class AuthController {
       }
 
       // 获取模型
-      const models = databaseConfig.getModels();
+      const models = databaseConfig.models;
       if (!models) {
         throw new AppError('数据库连接错误', 500);
       }
 
-      const user = await models.User.scope('withResetToken').findOne({
-        where: {
-          resetPasswordToken: token,
-          resetPasswordExpires: {
-            [Op.gt]: new Date()
-          }
-        }
-      });
+      // 查找具有有效重置令牌的用户
+      const allUsers = await models.User.findAll();
+      const user = allUsers.find((u: any) => 
+        u.resetPasswordToken === token && 
+        u.resetPasswordExpires && 
+        new Date(u.resetPasswordExpires) > new Date()
+      );
 
       if (!user) {
         throw new AppError('重置令牌无效或已过期', 400);
@@ -361,7 +359,7 @@ export class AuthController {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
 
       // 获取模型
-      const models = databaseConfig.getModels();
+      const models = databaseConfig.models;
       if (!models) {
         throw new AppError('数据库连接错误', 500);
       }
@@ -402,7 +400,7 @@ export class AuthController {
   };
 
   // 生成JWT令牌
-  private generateTokens(user: User, rememberMe: boolean = false): AuthTokens {
+  private generateTokens(user: any, rememberMe: boolean = false): AuthTokens {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       throw new AppError('JWT密钥未配置', 500);

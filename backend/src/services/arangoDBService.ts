@@ -10,7 +10,7 @@
  * 5. AI约束引擎数据支持
  */
 
-import { Database, aql, DocumentCollection, EdgeCollection, Graph } from 'arangojs';
+import { Database, aql } from 'arangojs';
 import { logger } from '../utils/logger';
 
 // 数据类型定义
@@ -127,50 +127,78 @@ export interface KnowledgeGraphEdge {
 // ArangoDB集合接口
 interface ArangoCollections {
   // 文档集合 (替代SQLite表)
-  users: DocumentCollection<UserDocument>;
-  projects: DocumentCollection<ProjectDocument>;
-  chapters: DocumentCollection<ChapterDocument>;
-  characters: DocumentCollection<CharacterDocument>;
-  locations: DocumentCollection<LocationDocument>;
-  events: DocumentCollection<any>;
-  concepts: DocumentCollection<any>;
-  themes: DocumentCollection<any>;
+  users: any;
+  projects: any;
+  chapters: any;
+  characters: any;
+  locations: any;
+  events: any;
+  concepts: any;
+  themes: any;
   
   // 边集合 (知识图谱关系)
-  characterRelations: EdgeCollection<KnowledgeGraphEdge>;
-  plotConnections: EdgeCollection<KnowledgeGraphEdge>;
-  worldRelations: EdgeCollection<KnowledgeGraphEdge>;
-  themeConnections: EdgeCollection<KnowledgeGraphEdge>;
+  characterRelations: any;
+  plotConnections: any;
+  worldRelations: any;
+  themeConnections: any;
 }
 
 export class ArangoDBService {
   private db: Database;
   private collections: Partial<ArangoCollections> = {};
-  private knowledgeGraph: Graph | null = null;
+  private knowledgeGraph: any | null = null;
   private isInitialized = false;
 
   constructor() {
     const config = {
       url: process.env.ARANGO_URL || 'http://localhost:8529',
-      databaseName: process.env.ARANGO_DB_NAME || 'legezhixiao',
+      databaseName: '_system', // 先连接到系统数据库
       auth: process.env.ARANGO_NO_AUTH === '1' ? undefined : {
         username: process.env.ARANGO_USER || 'root',
         password: process.env.ARANGO_PASSWORD || 'password'
       }
     };
 
+    logger.info('🔧 ArangoDB配置:', {
+      url: config.url,
+      databaseName: config.databaseName,
+      auth: config.auth ? `${config.auth.username}:***` : 'none'
+    });
+
     this.db = new Database(config);
+  }
+
+  // 连接方法（兼容性）
+  async connect(): Promise<void> {
+    await this.initialize();
+  }
+
+  // 初始化数据库方法（兼容性）
+  async initializeDatabase(): Promise<void> {
+    await this.initialize();
+  }
+
+  // 断开连接方法
+  async disconnect(): Promise<void> {
+    if (this.db) {
+      // ArangoDB驱动会自动处理连接池的清理
+      this.isInitialized = false;
+      logger.info('✅ ArangoDB连接已断开');
+    }
   }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
-      // 测试连接
+      // 测试连接到系统数据库
       await this.testConnection();
       
-      // 创建数据库
+      // 创建项目数据库
       await this.createDatabaseIfNotExists();
+      
+      // 重新测试连接到项目数据库
+      await this.testConnection();
       
       // 初始化集合
       await this.initializeCollections();
@@ -191,26 +219,46 @@ export class ArangoDBService {
 
   private async testConnection(): Promise<void> {
     try {
+      logger.info(`🔗 尝试连接ArangoDB数据库: ${this.db.name}`);
       const version = await this.db.version();
       logger.info(`✅ ArangoDB连接成功, 版本: ${version.version}`);
-    } catch (error) {
-      logger.error('❌ ArangoDB连接失败:', error);
-      throw new Error('无法连接到ArangoDB服务器');
+    } catch (error: any) {
+      logger.error('❌ ArangoDB连接失败:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        database: this.db.name
+      });
+      throw new Error(`无法连接到ArangoDB服务器: ${error.message}`);
     }
   }
 
   private async createDatabaseIfNotExists(): Promise<void> {
     try {
+      const targetDatabase = process.env.ARANGO_DB_NAME || 'legezhixiao';
       const databases = await this.db.listDatabases();
-      if (!databases.includes('legezhixiao')) {
-        await this.db.createDatabase('legezhixiao');
-        logger.info('✅ 创建数据库: legezhixiao');
+      
+      if (!databases.includes(targetDatabase)) {
+        await this.db.createDatabase(targetDatabase);
+        logger.info(`✅ 创建数据库: ${targetDatabase}`);
+      } else {
+        logger.info(`ℹ️  使用现有数据库: ${targetDatabase}`);
       }
-      this.db.useDatabase('legezhixiao');
+      
+      // 切换到项目数据库
+      this.db = new Database({
+        url: process.env.ARANGO_URL || 'http://localhost:8529',
+        databaseName: targetDatabase,
+        auth: process.env.ARANGO_NO_AUTH === '1' ? undefined : {
+          username: process.env.ARANGO_USER || 'root',
+          password: process.env.ARANGO_PASSWORD || 'password',
+        },
+      });
+      
+      logger.info(`🔄 已切换到数据库: ${targetDatabase}`);
     } catch (error) {
-      // 数据库可能已存在，切换到目标数据库
-      this.db.useDatabase('legezhixiao');
-      logger.info('ℹ️  使用现有数据库: legezhixiao');
+      logger.error('❌ 数据库创建/切换失败:', error);
+      throw error;
     }
   }
 
@@ -244,7 +292,7 @@ export class ArangoDBService {
     // 创建边集合
     for (const collectionName of edgeCollections) {
       try {
-        const collection = this.db.edgeCollection(collectionName);
+        const collection = this.db.collection(collectionName);
         if (!await collection.exists()) {
           await collection.create();
           logger.info(`✅ 创建边集合: ${collectionName}`);
@@ -388,10 +436,9 @@ export class ArangoDBService {
       currentWords: 0,
       tags: projectData.tags || [],
       settings: {
-        aiEnabled: true,
-        constraintsEnabled: true,
-        knowledgeGraphEnabled: true,
-        ...projectData.settings
+        aiEnabled: projectData.settings?.aiEnabled ?? true,
+        constraintsEnabled: projectData.settings?.constraintsEnabled ?? true,
+        knowledgeGraphEnabled: projectData.settings?.knowledgeGraphEnabled ?? true,
       },
       createdAt: now,
       updatedAt: now
@@ -776,6 +823,71 @@ export class ArangoDBService {
 
     const results = await cursor.all();
     return results[0];
+  }
+
+  // ==================== 通用数据操作方法 ====================
+  async createDocument(collection: string, data: any): Promise<any> {
+    const now = new Date().toISOString();
+    const document = {
+      ...data,
+      createdAt: data.createdAt || now,
+      updatedAt: now
+    };
+
+    const result = await this.db.collection(collection).save(document);
+    return { ...document, _key: result._key, _id: result._id, _rev: result._rev };
+  }
+
+  async getDocument(collection: string, key: string): Promise<any> {
+    try {
+      return await this.db.collection(collection).document(key);
+    } catch (error: any) {
+      if (error.code === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async updateDocument(collection: string, key: string, data: any): Promise<any> {
+    const updateData = {
+      ...data,
+      updatedAt: new Date().toISOString()
+    };
+
+    const result = await this.db.collection(collection).update(key, updateData, { returnNew: true });
+    return result.new;
+  }
+
+  async deleteDocument(collection: string, key: string): Promise<boolean> {
+    try {
+      await this.db.collection(collection).remove(key);
+      return true;
+    } catch (error: any) {
+      if (error.code === 404) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  async queryDocuments(collection: string, filter: any = {}): Promise<any[]> {
+    const filterQuery = Object.keys(filter).length > 0 
+      ? `FILTER ${Object.keys(filter).map(key => `doc.${key} == @${key}`).join(' AND ')}`
+      : '';
+
+    const cursor = await this.db.query(`
+      FOR doc IN ${collection}
+      ${filterQuery}
+      RETURN doc
+    `, filter);
+
+    return cursor.all();
+  }
+
+  async query(aqlQuery: string, bindVars: any = {}): Promise<any[]> {
+    const cursor = await this.db.query(aqlQuery, bindVars);
+    return cursor.all();
   }
 }
 

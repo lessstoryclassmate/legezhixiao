@@ -15,7 +15,8 @@ import {
   Col,
   Statistic,
   Progress,
-  Timeline
+  Timeline,
+  Descriptions
 } from 'antd';
 import {
   DatabaseOutlined,
@@ -31,9 +32,13 @@ import {
   UserOutlined,
   ThunderboltOutlined
 } from '@ant-design/icons';
-import Neo4jKnowledgeGraph from './Neo4jKnowledgeGraph';
-import Neo4jConfigPanel from './Neo4jConfigPanel';
-import { getNeo4jService, GraphData, GraphNode, GraphRelationship } from '../services/neo4jService';
+import { knowledgeGraphService, GraphNode, GraphRelationship } from '../../services/knowledgeGraphService';
+
+// 重新定义GraphData接口以兼容现有代码
+interface GraphData {
+  nodes: GraphNode[];
+  relationships: GraphRelationship[];
+}
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -45,7 +50,7 @@ interface KnowledgeGraphManagerProps {
 }
 
 interface SystemStatus {
-  neo4jConnected: boolean;
+  arangoConnected: boolean;
   databaseInitialized: boolean;
   graphSize: {
     nodes: number;
@@ -63,7 +68,7 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
   // 状态管理
   const [activeTab, setActiveTab] = useState('graph');
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
-    neo4jConnected: false,
+    arangoConnected: false,
     databaseInitialized: false,
     graphSize: { nodes: 0, relationships: 0 }
   });
@@ -73,8 +78,7 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
   const [selectedRelationship, setSelectedRelationship] = useState<GraphRelationship | null>(null);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
-  // Neo4j 服务实例
-  const neo4jService = getNeo4jService();
+  // 知识图谱服务 (使用ArangoDB后端API)
 
   // 初始化
   useEffect(() => {
@@ -94,8 +98,8 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
     try {
       setLoading(true);
       
-      // 检查Neo4j连接
-      const isConnected = await checkNeo4jConnection();
+      // 检查ArangoDB连接
+      const isConnected = await checkArangoConnection();
       
       if (isConnected) {
         // 检查数据库初始化状态
@@ -108,7 +112,7 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
         
         setSystemStatus(prev => ({
           ...prev,
-          neo4jConnected: isConnected,
+          arangoConnected: isConnected,
           databaseInitialized: isInitialized
         }));
       }
@@ -123,12 +127,14 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
     }
   };
 
-  // 检查Neo4j连接
-  const checkNeo4jConnection = async (): Promise<boolean> => {
+  // 检查ArangoDB连接
+  const checkArangoConnection = async (): Promise<boolean> => {
     try {
-      return await neo4jService.isConnected();
+      // 尝试搜索节点来测试连接
+      await knowledgeGraphService.searchNodes('test');
+      return true;
     } catch (error) {
-      console.error('检查Neo4j连接失败:', error);
+      console.error('检查ArangoDB连接失败:', error);
       return false;
     }
   };
@@ -136,12 +142,9 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
   // 检查数据库初始化状态
   const checkDatabaseInitialization = async (): Promise<boolean> => {
     try {
-      // 尝试运行一个简单的查询来检查约束是否存在
-      const result = await neo4jService.runQuery(
-        'SHOW CONSTRAINTS YIELD name WHERE name CONTAINS "GraphNode"',
-        {}
-      );
-      return result.records.length > 0;
+      // 尝试搜索节点，如果成功说明数据库已初始化
+      const nodes = await knowledgeGraphService.searchNodes('');
+      return true;
     } catch (error) {
       console.error('检查数据库初始化状态失败:', error);
       return false;
@@ -151,14 +154,23 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
   // 加载图谱数据
   const loadGraphData = async () => {
     try {
-      const data = await neo4jService.getProjectKnowledgeGraph(projectId);
+      const nodes = await knowledgeGraphService.searchNodes('');
+      const relationships: GraphRelationship[] = [];
+      
+      // 为每个节点获取关系
+      for (const node of nodes) {
+        const nodeRelationships = await knowledgeGraphService.getNodeRelationships(node.id);
+        relationships.push(...nodeRelationships);
+      }
+      
+      const data: GraphData = { nodes, relationships };
       setGraphData(data);
       
       setSystemStatus(prev => ({
         ...prev,
         graphSize: {
-          nodes: data.statistics.nodeCount,
-          relationships: data.statistics.relationshipCount
+          nodes: nodes.length,
+          relationships: relationships.length
         },
         lastUpdate: new Date()
       }));
@@ -172,7 +184,7 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
   const initializeDatabase = async () => {
     try {
       setLoading(true);
-      await neo4jService.initializeConstraints();
+      // ArangoDB不需要特殊的约束初始化，直接标记为已初始化
       await initializeSystem();
       message.success('数据库初始化成功');
     } catch (error: any) {
@@ -219,15 +231,15 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
       );
     }
 
-    if (!systemStatus.neo4jConnected) {
+    if (!systemStatus.arangoConnected) {
       return (
         <Card>
           <Alert
-            message="Neo4j 未连接"
+            message="ArangoDB 未连接"
             description={
               <div>
                 <Paragraph>
-                  知识图谱功能需要连接到Neo4j数据库。请先配置数据库连接。
+                  知识图谱功能需要连接到ArangoDB数据库。请先配置数据库连接。
                 </Paragraph>
                 <Button 
                   type="primary" 
@@ -281,15 +293,15 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
       <Row gutter={[16, 16]}>
         <Col span={6}>
           <Statistic
-            title="Neo4j连接"
-            value={systemStatus.neo4jConnected ? '已连接' : '未连接'}
+            title="ArangoDB连接"
+            value={systemStatus.arangoConnected ? '已连接' : '未连接'}
             prefix={
-              systemStatus.neo4jConnected ? 
+              systemStatus.arangoConnected ? 
                 <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
                 <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
             }
             valueStyle={{ 
-              color: systemStatus.neo4jConnected ? '#52c41a' : '#ff4d4f',
+              color: systemStatus.arangoConnected ? '#52c41a' : '#ff4d4f',
               fontSize: '14px'
             }}
           />
@@ -429,13 +441,31 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
                   children: (
                     <div style={{ height: 'calc(100vh - 140px)', display: 'flex' }}>
                       <div style={{ flex: 1 }}>
-                        <Neo4jKnowledgeGraph
-                          projectId={projectId}
-                          height={window.innerHeight - 140}
-                          onNodeSelect={handleNodeSelect}
-                          onRelationshipSelect={handleRelationshipSelect}
-                          onGraphUpdate={handleGraphUpdate}
-                        />
+                        <Card 
+                          title="知识图谱视图" 
+                          style={{ height: '100%' }}
+                          bodyStyle={{ padding: 16, height: 'calc(100% - 57px)' }}
+                        >
+                          {graphData ? (
+                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ marginBottom: 16 }}>
+                                <Text>节点数量: {graphData.nodes.length}</Text>
+                                <Text style={{ marginLeft: 16 }}>关系数量: {graphData.relationships.length}</Text>
+                              </div>
+                              <div style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 6, padding: 16 }}>
+                                <Text type="secondary">
+                                  知识图谱可视化组件正在开发中...
+                                  <br />
+                                  当前使用ArangoDB作为图数据库后端
+                                </Text>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Spin size="large" />
+                            </div>
+                          )}
+                        </Card>
                       </div>
                       <div style={{ width: '300px', padding: '16px' }}>
                         {renderSelectionInfo()}
@@ -450,13 +480,29 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
                       <SettingOutlined />
                       <span>数据库配置</span>
                       <Badge 
-                        status={systemStatus.neo4jConnected ? 'success' : 'error'} 
+                        status={systemStatus.arangoConnected ? 'success' : 'error'} 
                       />
                     </Space>
                   ),
                   children: (
                     <div style={{ padding: '16px', height: 'calc(100vh - 140px)', overflow: 'auto' }}>
-                      <Neo4jConfigPanel />
+                      <Card title="ArangoDB 配置">
+                        <Alert
+                          message="数据库配置"
+                          description="ArangoDB数据库连接通过后端API自动管理，无需前端配置。"
+                          type="info"
+                          showIcon
+                        />
+                        <div style={{ marginTop: 16 }}>
+                          <Descriptions bordered size="small">
+                            <Descriptions.Item label="数据库类型">ArangoDB</Descriptions.Item>
+                            <Descriptions.Item label="连接方式">后端API</Descriptions.Item>
+                            <Descriptions.Item label="状态">
+                              {systemStatus.arangoConnected ? '已连接' : '未连接'}
+                            </Descriptions.Item>
+                          </Descriptions>
+                        </div>
+                      </Card>
                     </div>
                   )
                 },
@@ -536,9 +582,9 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
                   使用知识图谱功能需要：
                 </Paragraph>
                 <ul style={{ paddingLeft: '20px', margin: 0 }}>
-                  <li>安装并运行 Neo4j 数据库</li>
-                  <li>配置数据库连接参数</li>
-                  <li>初始化数据库约束和索引</li>
+                  <li>后端ArangoDB数据库已自动配置</li>
+                  <li>知识图谱功能通过API自动管理</li>
+                  <li>数据库约束和索引已自动初始化</li>
                 </ul>
               </div>
             }

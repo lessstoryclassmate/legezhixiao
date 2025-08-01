@@ -4,16 +4,12 @@
 		{
 			"label": "启动前端开发服务器",
 			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"dev"
-			],
+			"command": "./scripts/start-frontend.sh",
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": [],
 			"options": {
-				"cwd": "${workspaceFolder}/frontend"
+				"cwd": "${workspaceFolder}"
 			},
 			"presentation": {
 				"echo": true,
@@ -25,16 +21,44 @@
 		{
 			"label": "启动后端开发服务器",
 			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"dev"
-			],
+			"command": "./scripts/start-backend.sh",
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": ["$tsc"],
 			"options": {
-				"cwd": "${workspaceFolder}/backend"
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "启动完整开发环境",
+			"type": "shell",
+			"command": "./scripts/start-dev.sh",
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "停止开发服务",
+			"type": "shell",
+			"command": "./scripts/stop-dev.sh",
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}"
 			},
 			"presentation": {
 				"echo": true,

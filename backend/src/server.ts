@@ -221,13 +221,13 @@ app.use('/api/logs', logRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // RxDB 同步路由
-startupStep(() => {
+startupStep('同步路由', () => {
   const syncRoutes = safeRequire('./routes/sync');
   if (syncRoutes) {
     app.use('/api/sync', syncRoutes.default || syncRoutes);
     console.log('✅ 同步路由已加载');
   }
-}, '同步路由');
+});
 
 // API 根路径
 app.get('/api', (req, res) => {

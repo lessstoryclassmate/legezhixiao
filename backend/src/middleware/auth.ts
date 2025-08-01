@@ -59,6 +59,9 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
   }
 };
 
+// 导出别名
+export const auth = authenticateToken;
+
 // 可选的认证中间件（允许匿名访问）
 export const optionalAuthentication = (req: Request, res: Response, next: NextFunction): void => {
   try {

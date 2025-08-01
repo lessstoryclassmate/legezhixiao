@@ -251,32 +251,24 @@ export class ChapterController {
         res.status(404).json({ error: '项目不存在或无权限访问' });
       }
 
-      // 重新排序
-      const sequelize = databaseConfig.getSequelize();
-      const transaction = await sequelize!.transaction();
-
+      // 重新排序章节
       try {
         for (const { id, order } of chapterOrders) {
           await Chapter.update(
             { order },
             { 
-              where: { id, projectId },
-              transaction 
+              where: { id, projectId }
             }
           );
         }
-        await transaction.commit();
 
-        res.json({
-          success: true,
-          message: '章节排序更新成功'
-        });
+        logger.info('章节排序成功', { projectId, updatedCount: chapterOrders.length });
+        res.json({ message: '排序成功' });
 
       } catch (error) {
-        await transaction.rollback();
-        throw error;
+        logger.error('章节排序失败:', error);
+        res.status(500).json({ error: '服务器内部错误' });
       }
-
     } catch (error) {
       logger.error('章节排序失败:', error);
       res.status(500).json({ error: '服务器内部错误' });
