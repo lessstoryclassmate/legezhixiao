@@ -12,7 +12,7 @@ import {
   LineChartOutlined,
   CheckCircleOutlined
 } from '@ant-design/icons'
-
+// 文件已清空
 const { Text } = Typography
 
 interface WritingSession {
@@ -48,10 +48,10 @@ const EnhancedWritingStats: React.FC<EnhancedWritingStatsProps> = ({
   const [bestDay, setBestDay] = useState({ date: '', count: 0 })
   const [showGoalSettings, setShowGoalSettings] = useState(false)
 
-  // 保存目标设置到localStorage
+  // 保存目标设置到localStorage（已禁用）
   const saveGoals = (daily: number, weekly: number) => {
     const goals = { daily, weekly }
-    localStorage.setItem(`writing_goals_${projectId}`, JSON.stringify(goals))
+    // localStorage.setItem(`writing_goals_${projectId}`, JSON.stringify(goals))
     setDailyGoal(daily)
     setWeeklyGoal(weekly)
     message.success('目标设置已保存')
@@ -64,8 +64,8 @@ const EnhancedWritingStats: React.FC<EnhancedWritingStatsProps> = ({
         // 基于projectId加载项目特定的统计数据
         console.log(`加载项目 ${projectId} 的统计数据`)
         
-        // 模拟从localStorage获取项目特定的目标设置
-        const savedGoals = localStorage.getItem(`writing_goals_${projectId}`)
+        // 模拟从localStorage获取项目特定的目标设置（已禁用）
+        // const savedGoals = localStorage.getItem(`writing_goals_${projectId}`)
         if (savedGoals) {
           const goals = JSON.parse(savedGoals)
           setDailyGoal(goals.daily || 1000)

@@ -209,7 +209,22 @@ app.get('/health', (req, res) => {
   });
 });
 
+// API 健康检查端点
+app.get('/api/health', (req, res) => {
+  const dbStatus = databaseConfig.getConnectionStatus();
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: NODE_ENV,
+    uptime: process.uptime(),
+    databases: dbStatus,
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
+
 // API 路由
+const dbStatusRoutes = require(path.join(__dirname, 'routes', 'dbStatus')).default;
+app.use('/api/db-status', dbStatusRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);

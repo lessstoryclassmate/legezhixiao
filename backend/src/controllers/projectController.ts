@@ -223,10 +223,10 @@ export class ProjectController {
 
       const backupData = {
         project: project.toJSON(),
-        chapters: chapters.map(ch => ch.toJSON()),
-        characters: characters.map(char => char.toJSON()),
-        worldBuildings: worldBuildings.map(wb => wb.toJSON()),
-        timelineEvents: timelineEvents.map(te => te.toJSON()),
+        chapters: chapters.map((ch: any) => ch.toJSON()),
+        characters: characters.map((char: any) => char.toJSON()),
+        worldBuildings: worldBuildings.map((wb: any) => wb.toJSON()),
+        timelineEvents: timelineEvents.map((te: any) => te.toJSON()),
         exportTime: new Date().toISOString(),
         version: '1.0'
       };

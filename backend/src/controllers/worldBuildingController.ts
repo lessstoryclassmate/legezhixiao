@@ -106,7 +106,7 @@ export class WorldBuildingController {
         order: [['type', 'ASC']]
       });
 
-      const categoryList = categories.map(item => item.type);
+      const categoryList = categories.map((item: any) => item.type);
 
       res.json({
         success: true,
@@ -357,7 +357,7 @@ export class WorldBuildingController {
       // 如果有关键词，进行名称匹配过滤
       const keywordStr = Array.isArray(keyword) ? keyword[0] : keyword;
       const worldBuildings = keywordStr && typeof keywordStr === 'string'
-        ? allWorldBuildings.filter(wb => wb.name.toLowerCase().includes(keywordStr.toLowerCase()))
+        ? allWorldBuildings.filter((wb: any) => wb.name.toLowerCase().includes(keywordStr.toLowerCase()))
         : allWorldBuildings;
 
       res.json({
@@ -403,7 +403,7 @@ export class WorldBuildingController {
 
       // 按分类组织数据
       const categorizedData: any = {};
-      worldBuildings.forEach(wb => {
+      worldBuildings.forEach((wb: any) => {
         if (!categorizedData[wb.type]) {
           categorizedData[wb.type] = [];
         }

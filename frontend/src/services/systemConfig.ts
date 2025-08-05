@@ -2,7 +2,7 @@
  * 系统配置服务
  * 管理应用程序的系统级配置和设置
  */
-
+// 文件已清空
 export interface SystemConfig {
   app: AppConfig;
   api: APIConfig;
@@ -121,19 +121,11 @@ export interface RateLimitConfig {
 }
 
 export interface StorageConfig {
-  local: LocalStorageConfig;
   cloud: CloudStorageConfig;
   backup: BackupConfig;
 }
 
-export interface LocalStorageConfig {
-  enabled: boolean;
-  maxSize: number; // MB
-  compression: boolean;
-  encryption: boolean;
-  autoCleanup: boolean;
-  retentionDays: number;
-}
+
 
 export interface CloudStorageConfig {
   enabled: boolean;
@@ -840,14 +832,7 @@ export class SystemConfigService {
 
   private loadConfig(): void {
     try {
-      const stored = localStorage.getItem('system_config');
-      if (stored) {
-        const storedConfig = JSON.parse(stored);
-        this.config = {
-          ...this.config,
-          ...storedConfig
-        };
-      }
+      // 本地存储已废弃
     } catch (error) {
       console.error('Failed to load config:', error);
     }
@@ -855,7 +840,7 @@ export class SystemConfigService {
 
   private saveConfig(): void {
     try {
-      localStorage.setItem('system_config', JSON.stringify(this.config));
+      // 本地存储已废弃
     } catch (error) {
       console.error('Failed to save config:', error);
     }

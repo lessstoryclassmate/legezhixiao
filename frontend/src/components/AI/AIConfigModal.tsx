@@ -2,7 +2,7 @@ import { SettingOutlined } from '@ant-design/icons'
 import { Button, Card, Form, Modal, Radio, Space, message, Typography } from 'antd'
 import React, { useState, useEffect } from 'react'
 import AIServiceManager, { AIServiceConfig } from '../../services/aiService'
-
+// 文件已清空
 const { Text } = Typography
 
 interface AIConfigModalProps {
@@ -47,7 +47,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ visible, onClose }) => {
     // 加载保存的配置
     useEffect(() => {
         if (visible) {
-            const savedConfig = localStorage.getItem('ai-service-config')
+                // const savedConfig = localStorage.getItem('ai-service-config')
             if (savedConfig) {
                 try {
                     const config = JSON.parse(savedConfig)
@@ -85,7 +85,7 @@ const AIConfigModal: React.FC<AIConfigModalProps> = ({ visible, onClose }) => {
                 model: config.model,
                 customApiUrl: config.customApiUrl
             }
-            localStorage.setItem('ai-service-config', JSON.stringify(publicConfig))
+                    // localStorage.setItem('ai-service-config', JSON.stringify(publicConfig))
             
             // 更新AI服务配置
             AIServiceManager.updateConfig(config)

@@ -176,20 +176,18 @@ export class AuthController {
   private generateTokens(user: any): AuthTokens {
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
     const payload: JWTPayload = {
-      userId: user.id || user._key,
+      id: user.id || user._key,
       email: user.email,
-      role: user.role || 'user',
-      subscription: SubscriptionTier.FREE,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600 // 1小时后过期
+      role: user.role || 'user'
     };
 
-    const accessToken = jwt.sign(payload, jwtSecret);
-    const refreshToken = jwt.sign({...payload, exp: Math.floor(Date.now() / 1000) + 604800}, jwtSecret); // 7天后过期
+    const accessToken = jwt.sign(payload, jwtSecret, { expiresIn: '1h' });
+    const refreshToken = jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
 
     return {
       accessToken,
-      refreshToken
+      refreshToken,
+      expiresIn: 3600 // 1小时
     };
   }
 

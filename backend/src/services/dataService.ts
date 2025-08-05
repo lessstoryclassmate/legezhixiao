@@ -64,7 +64,7 @@ export class DataService {
   async findAll(collection: string, filters: any = {}): Promise<any[]> {
     try {
       const arangoService = this.getArangoService();
-      const results = await arangoService.queryDocuments(collection, filters);
+      const results = await arangoService.findDocuments(collection, filters);
       return results.map((result: any) => this.formatResult(result));
     } catch (error) {
       logger.error(`查找文档列表失败: ${collection}`, error);

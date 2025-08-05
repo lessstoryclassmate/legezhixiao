@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Test</title>
+</head>
+<body>
+    <h1>Debug Test Page</h1>
+    <div id="root"></div>
+    
+    <script type="module">
+        console.log('Debug script loaded');
+        
+        // 测试基础 React 导入
+        try {
+            const React = await import('/node_modules/.vite/deps/react.js?v=7c3c3d04');
+            console.log('React imported successfully:', React);
+            
+            const ReactDOM = await import('/node_modules/.vite/deps/react-dom_client.js?v=7c3c3d04');
+            console.log('ReactDOM imported successfully:', ReactDOM);
+            
+            // 简单渲染测试
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(React.createElement('div', null, 'React is working!'));
+            
+        } catch (error) {
+            console.error('Error importing React:', error);
+            document.getElementById('root').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+        }
+    </script>
+</body>
+</html>

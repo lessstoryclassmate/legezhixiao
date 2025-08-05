@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端调试页面</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-ok { background-color: #52c41a; }
+        .status-warning { background-color: #faad14; }
+        .status-error { background-color: #f5222d; }
+        h1, h2 { color: #1890ff; }
+        button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #40a9ff; }
+        #test-results {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔧 乐格至效前端诊断</h1>
+        <p>检查前端服务状态和连接...</p>
+        
+        <div class="status">
+            <div class="status-dot status-ok"></div>
+            <span>HTML/CSS 渲染正常</span>
+        </div>
+        
+        <div class="status">
+            <div class="status-dot" id="js-status"></div>
+            <span id="js-text">JavaScript 加载中...</span>
+        </div>
+        
+        <div class="status">
+            <div class="status-dot" id="api-status"></div>
+            <span id="api-text">API 连接检查中...</span>
+        </div>
+        
+        <div class="status">
+            <div class="status-dot" id="react-status"></div>
+            <span id="react-text">React 应用状态检查中...</span>
+        </div>
+        
+        <h2>🧪 测试控制台</h2>
+        <button onclick="testAPI()">测试后端API</button>
+        <button onclick="testReactApp()">检查React应用</button>
+        <button onclick="openReactApp()">打开React应用</button>
+        <button onclick="checkConsole()">检查控制台错误</button>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        // 更新JavaScript状态
+        document.getElementById('js-status').className = 'status-dot status-ok';
+        document.getElementById('js-text').textContent = 'JavaScript 运行正常';
+        
+        const results = document.getElementById('test-results');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            results.innerHTML += `[${timestamp}] ${message}<br>`;
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        async function testAPI() {
+            log('🔍 开始测试后端API...');
+            
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ 后端API响应正常: ' + JSON.stringify(data));
+                    document.getElementById('api-status').className = 'status-dot status-ok';
+                    document.getElementById('api-text').textContent = '后端API连接正常';
+                } else {
+                    log('⚠️ 后端API响应异常: ' + response.status);
+                    document.getElementById('api-status').className = 'status-dot status-warning';
+                    document.getElementById('api-text').textContent = '后端API响应异常';
+                }
+            } catch (error) {
+                log('❌ 后端API连接失败: ' + error.message);
+                document.getElementById('api-status').className = 'status-dot status-error';
+                document.getElementById('api-text').textContent = '后端API连接失败';
+            }
+        }
+        
+        function testReactApp() {
+            log('🔍 检查React应用...');
+            
+            // 检查根元素
+            const rootElement = document.getElementById('root');
+            if (rootElement) {
+                log('✅ 找到React根元素');
+                if (rootElement.children.length > 0) {
+                    log('✅ React应用已渲染内容');
+                    document.getElementById('react-status').className = 'status-dot status-ok';
+                    document.getElementById('react-text').textContent = 'React应用运行正常';
+                } else {
+                    log('⚠️ React根元素为空');
+                    document.getElementById('react-status').className = 'status-dot status-warning';
+                    document.getElementById('react-text').textContent = 'React应用未渲染内容';
+                }
+            } else {
+                log('❌ 未找到React根元素');
+                document.getElementById('react-status').className = 'status-dot status-error';
+                document.getElementById('react-text').textContent = 'React根元素不存在';
+            }
+        }
+        
+        function openReactApp() {
+            log('🚀 跳转到React应用...');
+            window.location.href = '/';
+        }
+        
+        function checkConsole() {
+            log('🔍 当前控制台状态:');
+            
+            // 重写console方法以捕获错误
+            const originalError = console.error;
+            const originalWarn = console.warn;
+            
+            console.error = function(...args) {
+                log('❌ 控制台错误: ' + args.join(' '));
+                originalError.apply(console, args);
+            };
+            
+            console.warn = function(...args) {
+                log('⚠️ 控制台警告: ' + args.join(' '));
+                originalWarn.apply(console, args);
+            };
+            
+            log('✅ 控制台监听已启用');
+        }
+        
+        // 页面加载完成后自动运行测试
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                log('🚀 页面加载完成，开始自动测试...');
+                testAPI();
+                testReactApp();
+            }, 1000);
+        });
+        
+        // 检查页面错误
+        window.addEventListener('error', function(e) {
+            log('❌ 页面错误: ' + e.message);
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            log('❌ 未处理的Promise拒绝: ' + e.reason);
+        });
+    </script>
+</body>
+</html>

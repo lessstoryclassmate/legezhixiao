@@ -22,12 +22,29 @@ const RxDBProvider: React.FC<RxDBProviderProps> = ({
 // 数据库初始化加载组件
 const DatabaseInitializing: React.FC = () => {
   const [dots, setDots] = useState('');
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'connected' | 'disconnected' | 'error'>('checking');
+  const [backendMsg, setBackendMsg] = useState('');
 
   useEffect(() => {
     const interval = setInterval(() => {
       setDots(prev => prev.length >= 3 ? '' : prev + '.');
     }, 500);
-
+    // 检查后端数据库状态
+    fetch('/api/db-status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'connected') {
+          setBackendStatus('connected');
+          setBackendMsg('后端数据库连接正常');
+        } else {
+          setBackendStatus('disconnected');
+          setBackendMsg('后端数据库未连接');
+        }
+      })
+      .catch(() => {
+        setBackendStatus('error');
+        setBackendMsg('无法连接后端数据库接口');
+      });
     return () => clearInterval(interval);
   }, []);
 
@@ -41,6 +58,13 @@ const DatabaseInitializing: React.FC = () => {
         <p className="text-gray-600 dark:text-gray-400">
           正在设置离线优先的数据存储和同步
         </p>
+        <div className="mt-4">
+          <span className={
+            backendStatus === 'connected' ? 'text-green-600' : backendStatus === 'error' ? 'text-red-600' : 'text-yellow-600'
+          }>
+            {backendStatus === 'checking' ? '正在检测后端数据库...' : backendMsg}
+          </span>
+        </div>
       </div>
     </div>
   );

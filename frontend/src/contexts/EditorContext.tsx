@@ -1,5 +1,5 @@
 import React, { createContext, ReactNode, useContext, useState } from 'react'
-import { SessionManager } from '../services/sessionManager'
+import { sessionManager } from '../services/sessionManager'
 
 interface EditorContextType {
     content: string

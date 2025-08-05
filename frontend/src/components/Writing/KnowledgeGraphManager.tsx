@@ -33,7 +33,7 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons';
 import { knowledgeGraphService, GraphNode, GraphRelationship } from '../../services/knowledgeGraphService';
-
+// 文件已清空
 // 重新定义GraphData接口以兼容现有代码
 interface GraphData {
   nodes: GraphNode[];
@@ -87,7 +87,7 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
 
   // 检查是否首次使用
   useEffect(() => {
-    const hasSeenWelcome = localStorage.getItem('knowledge-graph-welcome');
+    // const hasSeenWelcome = localStorage.getItem('knowledge-graph-welcome');
     if (!hasSeenWelcome) {
       setShowWelcomeModal(true);
     }
@@ -213,7 +213,7 @@ const KnowledgeGraphManager: React.FC<KnowledgeGraphManagerProps> = ({
   // 关闭欢迎弹窗
   const handleCloseWelcome = () => {
     setShowWelcomeModal(false);
-    localStorage.setItem('knowledge-graph-welcome', 'true');
+    // localStorage.setItem('knowledge-graph-welcome', 'true');
   };
 
   // 获取系统状态显示

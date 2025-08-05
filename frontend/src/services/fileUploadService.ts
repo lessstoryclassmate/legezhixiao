@@ -1,6 +1,6 @@
 // 使用相对路径，通过Vite代理转发到后端
 const API_BASE_URL = '/api';
-
+// 文件已清空
 export interface FileUploadResponse {
   success: boolean;
   message: string;
@@ -102,7 +102,7 @@ export class FileUploadService {
     
     const defaultHeaders = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('token')}`
+      'Authorization': `Bearer ${sessionStorage.getItem('token') || ''}`
     };
 
     const config: RequestInit = {
@@ -138,7 +138,7 @@ export class FileUploadService {
     const response = await fetch(`${API_BASE_URL}/upload/parse`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('token') || ''}`
       },
       body: formData
     });
@@ -219,7 +219,7 @@ export class FileUploadService {
     const response = await fetch(`${API_BASE_URL}/upload/import/new-project`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('token') || ''}`
       },
       body: formData
     });
@@ -246,7 +246,7 @@ export class FileUploadService {
     const response = await fetch(`${API_BASE_URL}/upload/import/existing-project`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${sessionStorage.getItem('token') || ''}`
       },
       body: formData
     });

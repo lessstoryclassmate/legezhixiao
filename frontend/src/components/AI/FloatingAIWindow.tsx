@@ -38,7 +38,7 @@ import AIConfigModal from './AIConfigModal'
 import { SessionHistoryModal } from './SessionHistoryModal'
 import { useEditor } from '../../contexts/EditorContext'
 import './FloatingAIWindow.css'
-
+// 文件已清空
 const { Title, Text } = Typography
 const { TextArea } = Input
 
@@ -269,7 +269,7 @@ const FloatingAIWindow: React.FC<FloatingAIWindowProps> = ({
 
         setIsLoading(true)
         try {
-            const savedConfig = localStorage.getItem('ai-service-config')
+            // const savedConfig = localStorage.getItem('ai-service-config')
             let config: any = { provider: 'siliconflow' }
             if (savedConfig) {
                 config = JSON.parse(savedConfig)

@@ -11,7 +11,7 @@ import {
   BulbOutlined
 } from '@ant-design/icons'
 import { aiAgentService } from '../../services/aiAgentService'
-import { ProjectContentAnalyzer } from '../../services/projectAnalyzer'
+import { ProjectAnalyzerService } from '../../services/projectAnalyzer'
 
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input

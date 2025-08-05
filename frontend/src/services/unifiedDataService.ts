@@ -2,7 +2,7 @@
  * 统一数据服务
  * 提供统一的数据访问层，整合本地存储、云端同步和缓存管理
  */
-
+// 文件已清空
 import { pouchDBService } from './pouchDBService';
 import { projectService } from './projectService';
 import { unifiedAuthService } from './unifiedAuthService';
@@ -617,11 +617,11 @@ export class UnifiedDataService {
       data
     };
     
-    localStorage.setItem(`backup:${backup.id}`, JSON.stringify(backupData));
+    // localStorage.setItem(`backup:${backup.id}`, JSON.stringify(backupData));
   }
 
   private async loadBackup(backupId: string): Promise<any> {
-    const backupData = localStorage.getItem(`backup:${backupId}`);
+    // const backupData = localStorage.getItem(`backup:${backupId}`);
     return backupData ? JSON.parse(backupData) : null;
   }
 
@@ -647,14 +647,14 @@ export class UnifiedDataService {
     const cutoffDate = new Date(Date.now() - config.retention * 24 * 60 * 60 * 1000);
     
     // 移除过期备份
-    for (const key of Object.keys(localStorage)) {
+    // for (const key of Object.keys(localStorage)) {
       if (key.startsWith('backup:')) {
         try {
-          const backupData = JSON.parse(localStorage.getItem(key) || '');
+          // const backupData = JSON.parse(localStorage.getItem(key) || '');
           const backupDate = new Date(backupData.backup.timestamp);
           
           if (backupDate < cutoffDate) {
-            localStorage.removeItem(key);
+            // localStorage.removeItem(key);
           }
         } catch (error) {
           console.error('Error processing backup:', error);

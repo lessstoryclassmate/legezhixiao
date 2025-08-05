@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { ArangoDBService } from '../services/arangoDBService';
+import { ArangoDBService, createArangoDBService, ArangoDBConfig } from '../services/arangoDBService';
 import { initializeModels } from '../models/index_simple';
 
 class DatabaseAdapter {
@@ -28,10 +28,18 @@ class DatabaseAdapter {
    */
   public async initialize(): Promise<void> {
     try {
+      // ArangoDB配置
+      const arangoConfig: ArangoDBConfig = {
+        host: process.env.ARANGO_HOST || 'localhost',
+        port: parseInt(process.env.ARANGO_PORT || '8529'),
+        username: process.env.ARANGO_USERNAME || 'root',
+        password: process.env.ARANGO_PASSWORD || '',
+        database: process.env.ARANGO_DATABASE || 'legezhixiao'
+      };
+
       // 初始化ArangoDB连接
-      this.arangoDBService = new ArangoDBService();
+      this.arangoDBService = createArangoDBService(arangoConfig);
       await this.arangoDBService.connect();
-      await this.arangoDBService.initializeDatabase();
       
       this.isConnected = true;
       logger.info('✅ ArangoDB数据库连接成功');
@@ -104,7 +112,8 @@ class DatabaseAdapter {
   }
 }
 
-// 导出单例实例
+// 导出类和单例实例
+export { DatabaseAdapter };
 export const databaseAdapter = DatabaseAdapter.getInstance();
 
 // 保持向后兼容性的导出

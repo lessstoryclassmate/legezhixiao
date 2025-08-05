@@ -5,7 +5,7 @@ import type {
     ResetPasswordData,
     ChangePasswordData
 } from '../types'
-
+// 文件已清空
 import {
     UserRole,
     SubscriptionTier
@@ -28,8 +28,8 @@ class AuthService {
 
     // 初始化认证状态
     private initializeAuth() {
-        const token = localStorage.getItem(ACCESS_TOKEN_KEY)
-        const user = localStorage.getItem(CURRENT_USER_KEY)
+        // const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+        // const user = localStorage.getItem(CURRENT_USER_KEY)
         
         if (token && user) {
             // 验证令牌是否过期
@@ -61,8 +61,8 @@ class AuthService {
             const { user, token } = response.data
             
             // 存储认证信息
-            localStorage.setItem(ACCESS_TOKEN_KEY, token)
-            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
+            // localStorage.setItem(ACCESS_TOKEN_KEY, token)
+            // localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
             
             return { user, token }
         } catch (error) {
@@ -78,8 +78,8 @@ class AuthService {
             const { user, token } = response.data
             
             // 存储认证信息
-            localStorage.setItem(ACCESS_TOKEN_KEY, token)
-            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
+            // localStorage.setItem(ACCESS_TOKEN_KEY, token)
+            // localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
             
             return { user, token }
         } catch (error) {
@@ -91,7 +91,7 @@ class AuthService {
     // 用户登出
     async logout(): Promise<void> {
         try {
-            const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+            // const token = localStorage.getItem(ACCESS_TOKEN_KEY)
             if (token) {
                 // 通知后端登出
                 await api.post(`${API_BASE_URL}/logout`)
@@ -100,8 +100,8 @@ class AuthService {
             console.error('登出请求失败:', error)
         } finally {
             // 无论后端请求是否成功都清除本地存储
-            localStorage.removeItem(ACCESS_TOKEN_KEY)
-            localStorage.removeItem(CURRENT_USER_KEY)
+            // localStorage.removeItem(ACCESS_TOKEN_KEY)
+            // localStorage.removeItem(CURRENT_USER_KEY)
             sessionStorage.removeItem(ACCESS_TOKEN_KEY)
             sessionStorage.removeItem(CURRENT_USER_KEY)
         }
@@ -109,7 +109,7 @@ class AuthService {
 
     // 获取当前用户
     getCurrentUser(): User | null {
-        const userStr = localStorage.getItem(CURRENT_USER_KEY) || sessionStorage.getItem(CURRENT_USER_KEY)
+        // const userStr = localStorage.getItem(CURRENT_USER_KEY) || sessionStorage.getItem(CURRENT_USER_KEY)
         if (userStr) {
             try {
                 const user = JSON.parse(userStr)
@@ -127,7 +127,7 @@ class AuthService {
 
     // 检查认证状态
     isAuthenticated(): boolean {
-        const token = localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY)
+        // const token = localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY)
         return token !== null && this.isTokenValid(token)
     }
 
@@ -138,7 +138,7 @@ class AuthService {
             const user = response.data
             
             // 更新本地存储
-            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
+            // localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
             
             return user
         } catch (error) {
@@ -154,7 +154,7 @@ class AuthService {
             const updatedUser = response.data
             
             // 更新本地存储
-            localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser))
+            // localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(updatedUser))
             
             return updatedUser
         } catch (error) {
@@ -169,8 +169,8 @@ class AuthService {
                 this.saveMockUsers()
 
                 const token = this.generateToken(newUser)
-                localStorage.setItem(ACCESS_TOKEN_KEY, token)
-                localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser))
+                // localStorage.setItem(ACCESS_TOKEN_KEY, token)
+                // localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser))
 
                 resolve({ user: newUser, token })
             }, 1000) // 模拟网络延迟
@@ -198,12 +198,12 @@ class AuthService {
                 const token = this.generateToken(user)
                 
                 if (credentials.rememberMe) {
-                    localStorage.setItem(ACCESS_TOKEN_KEY, token)
+                    // localStorage.setItem(ACCESS_TOKEN_KEY, token)
                 } else {
                     sessionStorage.setItem(ACCESS_TOKEN_KEY, token)
                 }
                 
-                localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
+                // localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user))
 
                 resolve({ user, token })
             }, 1000)
@@ -214,8 +214,8 @@ class AuthService {
     async logout(): Promise<void> {
         return new Promise((resolve) => {
             setTimeout(() => {
-                localStorage.removeItem(ACCESS_TOKEN_KEY)
-                localStorage.removeItem(CURRENT_USER_KEY)
+                // localStorage.removeItem(ACCESS_TOKEN_KEY)
+                // localStorage.removeItem(CURRENT_USER_KEY)
                 sessionStorage.removeItem(ACCESS_TOKEN_KEY)
                 resolve()
             }, 500)
@@ -224,7 +224,7 @@ class AuthService {
 
     // 获取当前用户
     getCurrentUser(): User | null {
-        const userStr = localStorage.getItem(CURRENT_USER_KEY)
+        // const userStr = localStorage.getItem(CURRENT_USER_KEY)
         if (userStr) {
             try {
                 return JSON.parse(userStr)
@@ -237,7 +237,7 @@ class AuthService {
 
     // 检查认证状态
     isAuthenticated(): boolean {
-        const token = localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY)
+        // const token = localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY)
         if (token) {
             const payload = this.validateToken(token)
             return payload !== null
