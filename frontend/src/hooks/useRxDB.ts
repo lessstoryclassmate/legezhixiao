@@ -12,17 +12,48 @@ import {
 
 // 基础 Hook - 数据库状态
 export const useRxDB = () => {
+  console.log('🔄 useRxDB: Hook called');
   const [isInitialized, setIsInitialized] = useState(false);
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initSub = rxdbService.isInitialized().subscribe(setIsInitialized);
-    const syncSub = rxdbService.getSyncState().subscribe(setSyncState);
+    console.log('🔄 useRxDB: useEffect starting...');
+    
+    try {
+      console.log('🔄 useRxDB: Accessing rxdbService...');
+      const initSub = rxdbService.isInitialized().subscribe({
+        next: (initialized) => {
+          console.log(`📊 useRxDB: Initialization status: ${initialized}`);
+          setIsInitialized(initialized);
+        },
+        error: (err) => {
+          console.error('❌ useRxDB: Initialization subscription error:', err);
+          setError(err.message || String(err));
+        }
+      });
+      
+      const syncSub = rxdbService.getSyncState().subscribe({
+        next: (state) => {
+          console.log(`📊 useRxDB: Sync state: ${state}`);
+          setSyncState(state);
+        },
+        error: (err) => {
+          console.error('❌ useRxDB: Sync subscription error:', err);
+        }
+      });
 
-    return () => {
-      initSub.unsubscribe();
-      syncSub.unsubscribe();
-    };
+      console.log('✅ useRxDB: Subscriptions created');
+
+      return () => {
+        console.log('🔄 useRxDB: Cleaning up subscriptions');
+        initSub.unsubscribe();
+        syncSub.unsubscribe();
+      };
+    } catch (err) {
+      console.error('❌ useRxDB: Error setting up subscriptions:', err);
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }, []);
 
   const forceSync = useCallback(async () => {
@@ -44,6 +75,7 @@ export const useRxDB = () => {
   return {
     isInitialized,
     syncState,
+    error,
     forceSync,
     clearCache,
     exportData,

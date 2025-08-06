@@ -38,7 +38,24 @@
 		{
 			"label": "启动完整开发环境",
 			"type": "shell",
-			"command": "./scripts/start-dev.sh",
+			"command": "./scripts/start-pm2.sh",
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "启动完整开发环境（含ArangoDB）",
+			"type": "shell",
+			"command": "./scripts/start-pm2.sh",
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": [],
@@ -55,7 +72,69 @@
 		{
 			"label": "停止开发服务",
 			"type": "shell",
-			"command": "./scripts/stop-dev.sh",
+			"command": "./scripts/stop-pm2.sh",
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "启动PM2开发环境",
+			"type": "shell",
+			"command": "./scripts/start-pm2.sh",
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "停止PM2开发环境",
+			"type": "shell",
+			"command": "./scripts/stop-pm2.sh",
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "查看PM2日志",
+			"type": "shell",
+			"command": "pm2 logs",
+			"group": "build",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new"
+			}
+		},
+		{
+			"label": "PM2实时监控",
+			"type": "shell",
+			"command": "pm2 monit",
 			"group": "build",
 			"options": {
 				"cwd": "${workspaceFolder}"

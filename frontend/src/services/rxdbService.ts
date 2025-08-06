@@ -6,23 +6,15 @@ import {
   addRxPlugin,
   removeRxDatabase
 } from 'rxdb';
+// 暂时只加载必要的插件
 import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
-import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
-import { RxDBQueryBuilderPlugin } from 'rxdb/plugins/query-builder';
-import { RxDBJsonDumpPlugin } from 'rxdb/plugins/json-dump';
-import { RxDBAttachmentsPlugin } from 'rxdb/plugins/attachments';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
-import { replicateRxCollection } from 'rxdb/plugins/replication';
 import { BehaviorSubject, Observable } from 'rxjs';
 
-// 添加必要的插件
+// 只在开发模式下添加调试插件
 if (import.meta.env.DEV) {
   addRxPlugin(RxDBDevModePlugin);
 }
-addRxPlugin(RxDBUpdatePlugin);
-addRxPlugin(RxDBQueryBuilderPlugin);
-addRxPlugin(RxDBJsonDumpPlugin);
-addRxPlugin(RxDBAttachmentsPlugin);
 
 // 用户文档类型
 export interface UserDocument {
@@ -513,87 +505,43 @@ export class RxDBService {
   // 初始化数据库
   private async initializeDatabase(): Promise<void> {
     try {
+      console.log('🔄 RxDBService: 开始初始化数据库...');
+      
       // 创建数据库
       this.database = await createRxDatabase<DatabaseCollections>({
-        name: 'legezhixiao_frontend_db',
+        name: 'legezhixiao_frontend_db_v2', // 改变名称以避免缓存问题
         storage: getRxStorageDexie(),
-        ignoreDuplicate: true,
-        cleanupPolicy: {
-          minimumDeletedTime: 1000 * 60 * 60 * 24 * 7, // 1周
-          minimumCollectionAge: 1000 * 60 * 60 * 24 * 30, // 1月
-          runEach: 1000 * 60 * 60 * 12, // 每12小时清理一次
-          awaitReplicationsInSync: true
-        }
+        ignoreDuplicate: true
       });
+      
+      console.log('✅ RxDBService: 数据库创建成功');
 
-      // 添加集合
+      // 暂时只添加用户集合来测试
       await this.database.addCollections({
         users: {
-          schema: userSchema,
-          methods: {
-            getFullName(this: RxDocument<UserDocument>) {
-              return this.username;
-            }
-          }
-        },
-        projects: {
-          schema: projectSchema,
-          methods: {
-            getProgress(this: RxDocument<ProjectDocument>) {
-              return this.wordCountGoal > 0 ? (this.currentWordCount / this.wordCountGoal) * 100 : 0;
-            }
-          }
-        },
-        chapters: {
-          schema: chapterSchema,
-          methods: {
-            getReadingTime(this: RxDocument<ChapterDocument>) {
-              // 假设平均阅读速度为200字/分钟
-              return Math.ceil(this.wordCount / 200);
-            }
-          }
-        },
-        characters: {
-          schema: characterSchema,
-          methods: {
-            getRelationshipsWith(this: RxDocument<CharacterDocument>, characterId: string) {
-              return this.relationships.filter(rel => rel.characterId === characterId);
-            }
-          }
-        },
-        worldbuilding: {
-          schema: worldBuildingSchema,
-          methods: {
-            getConnectedElements(this: RxDocument<WorldBuildingDocument>) {
-              return this.connections.map(conn => conn.targetId);
-            }
-          }
-        },
-        writing_sessions: {
-          schema: writingSessionSchema,
-          methods: {
-            isGoalAchieved(this: RxDocument<WritingSessionDocument>) {
-              return this.goal.achieved;
-            }
-          }
-        },
-        writing_goals: {
-          schema: writingGoalSchema,
-          methods: {
-            getProgressPercentage(this: RxDocument<WritingGoalDocument>) {
-              return this.target.value > 0 ? (this.current / this.target.value) * 100 : 0;
-            }
+          schema: {
+            version: 0,
+            primaryKey: 'id',
+            type: 'object',
+            properties: {
+              id: { type: 'string', maxLength: 100 },
+              username: { type: 'string', maxLength: 50 },
+              email: { type: 'string', maxLength: 100 }
+            },
+            required: ['id', 'username', 'email']
           }
         }
       });
 
-      // 设置同步
-      this.setupReplication();
+      console.log('✅ RxDBService: 用户集合添加成功');
+
+      // 暂时禁用同步以避免初始化错误
+      // this.setupReplication();
 
       this.isInitialized$.next(true);
-      console.log('✅ RXDB 数据库初始化完成');
+      console.log('✅ RxDBService: 数据库初始化完成');
     } catch (error) {
-      console.error('❌ RXDB 数据库初始化失败:', error);
+      console.error('❌ RxDBService: 数据库初始化失败:', error);
       this.isInitialized$.next(false);
     }
   }

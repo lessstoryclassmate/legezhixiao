@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import { databaseConfig } from '../config/databaseAdapter';
 import { 
   LoginRequest, 
   RegisterRequest, 

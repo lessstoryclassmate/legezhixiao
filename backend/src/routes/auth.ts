@@ -26,6 +26,6 @@ router.post('/reset-password/:token', authController.resetPassword);
 router.get('/verify-email/:token', authController.verifyEmail);
 
 // 验证令牌
-router.get('/verify-token', authController.verifyToken);
+router.get('/verify-token', authController.verifyToken as any);
 
 export default router;

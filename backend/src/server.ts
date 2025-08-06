@@ -224,7 +224,9 @@ app.get('/api/health', (req, res) => {
 
 // API 路由
 const dbStatusRoutes = require(path.join(__dirname, 'routes', 'dbStatus')).default;
+console.log('✅ dbStatus routes 导入成功');
 app.use('/api/db-status', dbStatusRoutes);
+console.log('✅ /api/db-status 路由已注册');
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);

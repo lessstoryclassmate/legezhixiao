@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RxDB 测试</title>
+</head>
+<body>
+    <h1>RxDB 初始化测试</h1>
+    <div id="status">正在测试...</div>
+    <div id="logs"></div>
+
+    <script type="module">
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            console.log(message);
+        }
+
+        async function testRxDB() {
+            try {
+                log('开始测试 RxDB 导入...');
+                
+                // 测试基础 RxDB 导入
+                const { createRxDatabase, addRxPlugin } = await import('./node_modules/rxdb/dist/esm/index.js');
+                log('✅ RxDB 核心模块导入成功');
+                
+                // 测试存储适配器
+                const { getRxStorageDexie } = await import('./node_modules/rxdb/plugins/storage-dexie/dist/esm/index.js');
+                log('✅ Dexie 存储适配器导入成功');
+                
+                // 测试创建数据库
+                log('尝试创建测试数据库...');
+                const db = await createRxDatabase({
+                    name: 'test_db',
+                    storage: getRxStorageDexie(),
+                    ignoreDuplicate: true
+                });
+                log('✅ 测试数据库创建成功');
+                
+                // 清理
+                await db.destroy();
+                log('✅ 测试数据库清理完成');
+                
+                statusDiv.textContent = '✅ RxDB 测试通过';
+                statusDiv.style.color = 'green';
+                
+            } catch (error) {
+                log(`❌ 错误: ${error.message}`, 'error');
+                log(`错误堆栈: ${error.stack}`, 'error');
+                statusDiv.textContent = '❌ RxDB 测试失败';
+                statusDiv.style.color = 'red';
+            }
+        }
+
+        // 启动测试
+        testRxDB();
+    </script>
+</body>
+</html>

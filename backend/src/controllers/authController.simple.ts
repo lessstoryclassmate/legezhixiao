@@ -175,8 +175,8 @@ export class AuthController {
   // 生成JWT令牌
   private generateTokens(user: any): AuthTokens {
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key';
-    const payload: JWTPayload = {
-      id: user.id || user._key,
+    const payload = {
+      userId: user.id || user._key,
       email: user.email,
       role: user.role || 'user'
     };
@@ -186,8 +186,7 @@ export class AuthController {
 
     return {
       accessToken,
-      refreshToken,
-      expiresIn: 3600 // 1小时
+      refreshToken
     };
   }
 

@@ -2,6 +2,7 @@
 
 # 后端启动器 - 固定端口3000
 # 如果端口被占用则自动清理并重新启动
+# 自动检查并启动 ArangoDB
 
 set -e  # 遇到错误立即退出
 
@@ -18,6 +19,15 @@ BACKEND_DIR="$PROJECT_ROOT/backend"
 LOG_DIR="$PROJECT_ROOT/logs"
 
 echo "🚀 启动后端服务 (固定端口: $BACKEND_PORT)"
+
+# 检查并启动 ArangoDB
+echo "📊 检查 ArangoDB 状态..."
+if ! curl -s http://localhost:8529/_api/version > /dev/null 2>&1; then
+    echo "📊 ArangoDB 未运行，正在启动..."
+    "$PROJECT_ROOT/start-arango-quiet.sh"
+else
+    echo "✅ ArangoDB 已运行"
+fi
 echo "============================================"
 
 # 创建日志目录
@@ -47,6 +57,38 @@ fi
 # 设置环境变量
 export PORT=$BACKEND_PORT
 export NODE_ENV=development
+
+# 1. 首先启动 ArangoDB
+echo "🗄️ 启动 ArangoDB 数据库..."
+if ! pgrep -f "arangod" > /dev/null; then
+    # 启动 ArangoDB
+    if [ -f "$PROJECT_ROOT/start-arango.sh" ]; then
+        cd "$PROJECT_ROOT"
+        ./start-arango.sh
+        cd "$BACKEND_DIR"
+        
+        # 等待 ArangoDB 启动
+        echo "⏳ 等待 ArangoDB 启动..."
+        timeout=30
+        while [ $timeout -gt 0 ]; do
+            if netstat -tulnp 2>/dev/null | grep -q ":8529.*LISTEN" || curl -s http://localhost:8529/_api/version >/dev/null 2>&1; then
+                echo "✅ ArangoDB 启动成功"
+                break
+            fi
+            sleep 1
+            timeout=$((timeout - 1))
+        done
+        
+        if [ $timeout -eq 0 ]; then
+            echo "❌ ArangoDB 启动超时"
+            exit 1
+        fi
+    else
+        echo "⚠️ 未找到 start-arango.sh，请确保 ArangoDB 已手动启动"
+    fi
+else
+    echo "✅ ArangoDB 已经在运行"
+fi
 
 # 启动后端服务
 echo "⚙️ 启动后端服务..."

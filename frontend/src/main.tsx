@@ -5,6 +5,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+// import SimpleApp from './SimpleApp'
 import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 import './styles/tech-theme.css'
@@ -31,7 +32,14 @@ const theme = {
 
 const container = document.getElementById('root')
 if (!container) throw new Error('Failed to find the root element')
+
+// 添加调试信息
+console.log('🚀 前端应用开始初始化...')
+console.log('📦 Root容器已找到:', container)
+
 const root = createRoot(container)
+
+console.log('🔧 React Root已创建')
 
 root.render(
     <React.StrictMode>
@@ -46,3 +54,5 @@ root.render(
         </ErrorBoundary>
     </React.StrictMode>,
 )
+
+console.log('✅ React应用已渲染')

@@ -187,10 +187,10 @@ export class ArangoDBService {
             currentWords: 0,
             tags: projectData.tags || [],
             settings: {
-                aiEnabled: true,
-                constraintsEnabled: true,
-                knowledgeGraphEnabled: true,
-                ...projectData.settings
+                ...projectData.settings,
+                aiEnabled: projectData.settings?.aiEnabled ?? true,
+                constraintsEnabled: projectData.settings?.constraintsEnabled ?? true,
+                knowledgeGraphEnabled: projectData.settings?.knowledgeGraphEnabled ?? true
             },
             createdAt: now,
             updatedAt: now

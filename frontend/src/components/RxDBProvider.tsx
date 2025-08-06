@@ -10,12 +10,26 @@ const RxDBProvider: React.FC<RxDBProviderProps> = ({
   children, 
   fallback = <DatabaseInitializing /> 
 }) => {
-  const { isInitialized } = useRxDB();
+  console.log('🔄 RxDBProvider: Component rendering');
+  const { isInitialized, error } = useRxDB();
+  
+  if (error) {
+    console.error('❌ RxDBProvider: Database error:', error);
+    return (
+      <div style={{ padding: '20px', background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: '4px' }}>
+        <h3 style={{ color: '#cf1322' }}>数据库初始化错误</h3>
+        <p>错误信息: {error}</p>
+        <button onClick={() => window.location.reload()}>刷新页面</button>
+      </div>
+    );
+  }
 
   if (!isInitialized) {
+    console.log('🔄 RxDBProvider: Database not initialized, showing fallback');
     return <>{fallback}</>;
   }
 
+  console.log('✅ RxDBProvider: Database initialized, rendering children');
   return <>{children}</>;
 };
 
